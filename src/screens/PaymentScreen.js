@@ -117,7 +117,7 @@ const PaymentScreen = ({ route, navigation }) => {
           setPaymentStatus(statusRes.payment_status);
           setPaymentType(statusRes.payment_type);
           showAlert(
-            'Pembayaran Berhasil!',
+            'Pembayaran Berhasil! 🎉',
             'Undangan Anda telah dibayar dan siap dipublikasikan.',
             'success',
             [{ text: 'Sip!', style: 'primary' }]
@@ -201,7 +201,7 @@ const PaymentScreen = ({ route, navigation }) => {
             <View style={styles.paidIconBg}>
               <Ionicons name="checkmark-circle" size={72} color={theme.colors.success} />
             </View>
-            <Text style={styles.paidTitle}>Pembayaran Berhasil!</Text>
+            <Text style={styles.paidTitle}>Pembayaran Berhasil! 🎉</Text>
             <Text style={styles.paidDesc}>
               Terima kasih! Pembayaran Anda telah berhasil diproses. Undangan digital Anda sudah aktif dan siap dibagikan kepada tamu.
             </Text>

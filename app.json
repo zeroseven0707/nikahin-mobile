@@ -37,17 +37,10 @@
         "WRITE_EXTERNAL_STORAGE"
       ]
     },
-    "plugins": [
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
-        }
-      ]
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "590e3de1-72c7-4708-9c1d-268968f40545"
       }
     }
   }
