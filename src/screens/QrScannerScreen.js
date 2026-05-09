@@ -16,36 +16,51 @@ import { useAuth } from '../context/AuthContext';
 import { guestService } from '../services/invitationService';
 
 // ─── Scan mode config ────────────────────────────────────────────────────────
-const MODES = {
+const ALL_MODES = {
   checkin: {
-    key:         'checkin',
-    label:       'Check-in',
-    icon:        'enter-outline',
-    iconActive:  'enter',
-    color:       theme.colors.success,
-    gradient:    ['#059669', '#10B981'],
-    hint:        'Scan QR untuk check-in tamu',
-    successTitle:'Check-in Berhasil!',
-    dupTitle:    'Sudah Check-in',
-    dupIcon:     'time-outline',
-    dupColor:    theme.colors.warning,
-    dupPrefix:   'Sudah check-in pada',
+    key:          'checkin',
+    label:        'Check-in',
+    icon:         'enter-outline',
+    iconActive:   'enter',
+    color:        theme.colors.success,
+    gradient:     ['#059669', '#10B981'],
+    hint:         'Scan QR untuk check-in tamu',
+    successTitle: 'Check-in Berhasil!',
+    dupTitle:     'Sudah Check-in',
+    dupIcon:      'time-outline',
+    dupColor:     theme.colors.warning,
+    dupPrefix:    'Sudah check-in pada',
     successPrefix:'Check-in pada',
   },
   souvenir: {
-    key:         'souvenir',
-    label:       'Souvenir',
-    icon:        'gift-outline',
-    iconActive:  'gift',
-    color:       '#A855F7',
-    gradient:    ['#7C3AED', '#A855F7'],
-    hint:        'Scan QR untuk pengambilan souvenir',
-    successTitle:'Souvenir Tercatat!',
-    dupTitle:    'Sudah Ambil Souvenir',
-    dupIcon:     'time-outline',
-    dupColor:    theme.colors.warning,
-    dupPrefix:   'Sudah ambil souvenir pada',
+    key:          'souvenir',
+    label:        'Souvenir',
+    icon:         'gift-outline',
+    iconActive:   'gift',
+    color:        '#A855F7',
+    gradient:     ['#7C3AED', '#A855F7'],
+    hint:         'Scan QR untuk pengambilan souvenir',
+    successTitle: 'Souvenir Tercatat!',
+    dupTitle:     'Sudah Ambil Souvenir',
+    dupIcon:      'time-outline',
+    dupColor:     theme.colors.warning,
+    dupPrefix:    'Sudah ambil souvenir pada',
     successPrefix:'Souvenir diambil pada',
+  },
+  checkout: {
+    key:          'checkout',
+    label:        'Check-out',
+    icon:         'exit-outline',
+    iconActive:   'exit',
+    color:        theme.colors.warning,
+    gradient:     ['#D97706', '#F59E0B'],
+    hint:         'Scan QR untuk check-out tamu',
+    successTitle: 'Check-out Berhasil!',
+    dupTitle:     'Sudah Check-out',
+    dupIcon:      'time-outline',
+    dupColor:     theme.colors.textSecondary,
+    dupPrefix:    'Sudah check-out pada',
+    successPrefix:'Check-out pada',
   },
 };
 
@@ -53,11 +68,17 @@ const CATEGORY_LABELS = { family: 'Keluarga', friend: 'Teman', colleague: 'Rekan
 
 // ─── Component ───────────────────────────────────────────────────────────────
 const QrScannerScreen = ({ route, navigation }) => {
-  const { invitation } = route.params;
+  const { invitation, activeModes, multiSouvenir } = route.params;
   const { token } = useAuth();
 
+  // Build MODES object from activeModes param (or default to checkin+souvenir)
+  const enabledKeys = activeModes && activeModes.length > 0
+    ? activeModes.filter(k => ALL_MODES[k])
+    : ['checkin', 'souvenir'];
+  const MODES = Object.fromEntries(enabledKeys.map(k => [k, ALL_MODES[k]]));
+
   const [permission, requestPermission] = useCameraPermissions();
-  const [mode, setMode]           = useState('checkin');
+  const [mode, setMode]           = useState(enabledKeys[0]);
   const [scanned, setScanned]     = useState(false);
   const [processing, setProcessing] = useState(false);
   const [result, setResult]       = useState(null);
@@ -110,16 +131,39 @@ const QrScannerScreen = ({ route, navigation }) => {
       if (mode === 'checkin') {
         response = await guestService.checkIn(token, invitation.id, data);
         setResult({ success: true, guest: response.guest, timestamp: response.checked_in_at });
-      } else {
+      } else if (mode === 'souvenir') {
         response = await guestService.souvenirScan(token, invitation.id, data);
         setResult({ success: true, guest: response.guest, timestamp: response.souvenir_taken_at });
+      } else if (mode === 'checkout') {
+        response = await guestService.checkOut(token, invitation.id, data);
+        setResult({ success: true, guest: response.guest, timestamp: response.checked_out_at });
       }
     } catch (error) {
       const errData = error?.response?.data;
-      const isDup   = errData?.already_checked_in || errData?.already_taken;
+      const isDup   = errData?.already_checked_in || errData?.already_taken || errData?.already_checked_out;
       if (isDup) {
-        const ts = errData.checked_in_at || errData.souvenir_taken_at;
-        setResult({ success: false, duplicate: true, guest: errData.guest, timestamp: ts });
+        // Souvenir mode + multiSouvenir enabled → coba souvenir ke-2
+        if (mode === 'souvenir' && multiSouvenir && errData?.already_taken) {
+          try {
+            const res2 = await guestService.souvenirScan2(token, invitation.id, data);
+            setResult({
+              success: true,
+              isSecondSouvenir: true,
+              guest: res2.guest,
+              timestamp: res2.souvenir2_taken_at,
+            });
+          } catch (err2) {
+            const e2 = err2?.response?.data;
+            if (e2?.already_taken) {
+              setResult({ success: false, duplicate: true, guest: e2.guest, timestamp: e2.souvenir2_taken_at, dupLabel: 'Souvenir ke-2 sudah diambil' });
+            } else {
+              setResult({ success: false, message: e2?.message || 'Gagal mencatat souvenir ke-2.' });
+            }
+          }
+        } else {
+          const ts = errData.checked_in_at || errData.souvenir_taken_at || errData.checked_out_at;
+          setResult({ success: false, duplicate: true, guest: errData.guest, timestamp: ts });
+        }
       } else {
         setResult({ success: false, message: errData?.message || 'QR code tidak valid.' });
       }
@@ -289,9 +333,9 @@ const QrScannerScreen = ({ route, navigation }) => {
               },
             ]}>
               {result.success
-                ? currentMode.successTitle
+                ? (result.isSecondSouvenir ? 'Souvenir Ke-2 Tercatat!' : currentMode.successTitle)
                 : result.duplicate
-                  ? currentMode.dupTitle
+                  ? (result.dupLabel || currentMode.dupTitle)
                   : 'QR Tidak Valid'}
             </Text>
 

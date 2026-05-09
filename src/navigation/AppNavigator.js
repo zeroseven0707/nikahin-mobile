@@ -35,6 +35,7 @@ import GalleryScreen from '../screens/GalleryScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import AboutScreen from '../screens/AboutScreen';
 import HelpScreen from '../screens/HelpScreen';
+import ScanHubScreen from '../screens/ScanHubScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -131,6 +132,7 @@ const AppNavigator = () => {
           <Stack.Screen name="EditGuest" component={EditGuestScreen} />
           <Stack.Screen name="GuestQr" component={GuestQrScreen} />
           <Stack.Screen name="QrScanner" component={QrScannerScreen} />
+          <Stack.Screen name="ScanHub" component={ScanHubScreen} />
           <Stack.Screen name="ScanAnalytics" component={ScanAnalyticsScreen} />
           <Stack.Screen name="ImportGuest" component={ImportGuestScreen} />
           <Stack.Screen name="RsvpList" component={RsvpListScreen} />

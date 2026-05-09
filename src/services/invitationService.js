@@ -306,6 +306,22 @@ export const guestService = {
   },
 
   /**
+   * Check-out a guest by QR token
+   */
+  checkOut: async (token, invitationId, qrToken) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/checkout`,
+        { qr_token: qrToken },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Reset check-in status for a guest
    */
   resetCheckIn: async (token, invitationId, guestId) => {
@@ -322,12 +338,44 @@ export const guestService = {
   },
 
   /**
-   * Scan QR for souvenir pickup
+   * Reset check-out status for a guest
+   */
+  resetCheckOut: async (token, invitationId, guestId) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/guests/${guestId}/reset-checkout`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Scan QR for souvenir pickup (souvenir ke-1)
    */
   souvenirScan: async (token, invitationId, qrToken) => {
     try {
       const response = await api.post(
         `/invitations/${invitationId}/souvenir-scan`,
+        { qr_token: qrToken },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Scan QR for souvenir ke-2 (multi souvenir)
+   */
+  souvenirScan2: async (token, invitationId, qrToken) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/souvenir-scan-2`,
         { qr_token: qrToken },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -344,6 +392,22 @@ export const guestService = {
     try {
       const response = await api.post(
         `/invitations/${invitationId}/guests/${guestId}/reset-souvenir`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Reset souvenir ke-2 status for a guest
+   */
+  resetSouvenir2: async (token, invitationId, guestId) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/guests/${guestId}/reset-souvenir-2`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

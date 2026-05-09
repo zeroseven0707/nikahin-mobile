@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Nikahin",
-    "slug": "nikahin",
+    "name": "Dinvitation",
+    "slug": "dinvitation",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nikahin.app",
+      "bundleIdentifier": "com.dinvitation.app",
       "buildNumber": "1"
     },
     "android": {
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6B4CE6"
       },
-      "package": "com.nikahin.app",
+      "package": "com.dinvitation.app",
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [

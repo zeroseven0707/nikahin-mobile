@@ -197,7 +197,7 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       color: '#7C3AED',
       bg: '#7C3AED15',
       label: 'QR Tamu',
-      onPress: () => navigation.navigate('QrScanner', { invitation }),
+      onPress: () => navigation.navigate('ScanHub', { invitation }),
     },
     {
       icon: 'chatbubbles-outline',

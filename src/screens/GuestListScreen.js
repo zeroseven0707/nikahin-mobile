@@ -264,7 +264,7 @@ const GuestListScreen = ({ route, navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.headerButton}
-                onPress={() => navigation.navigate('QrScanner', { invitation })}
+                onPress={() => navigation.navigate('ScanHub', { invitation })}
               >
                 <Ionicons name="qr-code-outline" size={20} color={theme.colors.white} />
               </TouchableOpacity>
