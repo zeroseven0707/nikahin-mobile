@@ -18,12 +18,27 @@ import { useAuth } from '../context/AuthContext';
 import { invitationService } from '../services/invitationService';
 import { API_BASE_URL, WEB_BASE_URL } from '../config/api';
 
+// ─── Mini progress bar ────────────────────────────────────────────────────────
+const ProgressBar = ({ value, total, color }) => {
+  const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+  return (
+    <View style={pbStyles.bg}>
+      <View style={[pbStyles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+    </View>
+  );
+};
+const pbStyles = StyleSheet.create({
+  bg:   { height: 5, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 3 },
+});
+
 const InvitationDetailScreen = ({ route, navigation }) => {
   const { invitation: initialInvitation } = route.params;
   const { token } = useAuth();
   const [invitation, setInvitation] = useState(initialInvitation);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [stats, setStats] = useState(null);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', type: 'info', buttons: [] });
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -46,6 +61,11 @@ const InvitationDetailScreen = ({ route, navigation }) => {
     } catch (error) {
       console.error('Error loading invitation:', error);
     }
+    // Load stats in parallel (non-blocking)
+    try {
+      const statsRes = await invitationService.getStatistics(token, invitation.id);
+      setStats(statsRes.statistics || statsRes.data || {});
+    } catch (_) {}
   };
 
   const handlePublish = () => {
@@ -137,11 +157,6 @@ const InvitationDetailScreen = ({ route, navigation }) => {
     });
   };
 
-  const formatTime = (start, end) => {
-    if (!start) return null;
-    return end ? `${start} – ${end} WIB` : `${start} WIB`;
-  };
-
   // 2-column action grid
   const actionGrid = [
     {
@@ -206,13 +221,6 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       label: 'RSVP',
       badge: invitation.rsvps_count || 0,
       onPress: () => navigation.navigate('RsvpList', { invitation }),
-    },
-    {
-      icon: 'stats-chart-outline',
-      color: theme.colors.primaryLight,
-      bg: theme.colors.primaryLight + '18',
-      label: 'Statistik',
-      onPress: () => navigation.navigate('Statistics', { invitation }),
     },
   ];
 
@@ -419,89 +427,132 @@ const InvitationDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* ── EVENT CARDS ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detail Acara</Text>
+        {/* ── STATISTIK ── */}
+        {(() => {
+          const viewsCount   = stats?.views_count   ?? invitation.views_count   ?? 0;
+          const guestsCount  = stats?.guests_count  ?? invitation.guests_count  ?? 0;
+          const rsvpsCount   = stats?.rsvps_count   ?? invitation.rsvps_count   ?? 0;
+          const mobileViews  = stats?.mobile_views  ?? 0;
+          const desktopViews = stats?.desktop_views ?? 0;
+          const tabletViews  = stats?.tablet_views  ?? 0;
+          const engagementRate = viewsCount > 0
+            ? ((rsvpsCount / viewsCount) * 100).toFixed(1)
+            : '0.0';
+          const totalDeviceViews = mobileViews + desktopViews + tabletViews || 1;
 
-          {/* Akad */}
-          <View style={styles.eventCard}>
-            <LinearGradient
-              colors={[theme.colors.primary + '12', theme.colors.primary + '04']}
-              style={styles.eventCardInner}
-            >
-              <View style={styles.eventHeader}>
-                <View style={[styles.eventIconBg, { backgroundColor: theme.colors.primary + '20' }]}>
-                  <Ionicons name="heart" size={18} color={theme.colors.primary} />
-                </View>
-                <View style={styles.eventHeaderText}>
-                  <Text style={styles.eventType}>Akad Nikah</Text>
-                  <Text style={styles.eventLocation} numberOfLines={1}>{invitation.akad_location || '-'}</Text>
-                </View>
+          return (
+            <View style={styles.section}>
+              <View style={styles.statsSectionHeader}>
+                <Text style={styles.sectionTitle}>Statistik</Text>
+                <TouchableOpacity
+                  style={styles.statsDetailBtn}
+                  onPress={() => navigation.navigate('Statistics', { invitation })}
+                >
+                  <Text style={styles.statsDetailText}>Detail</Text>
+                  <Ionicons name="chevron-forward" size={13} color={theme.colors.primary} />
+                </TouchableOpacity>
               </View>
-              <View style={styles.eventMeta}>
-                <View style={styles.eventMetaItem}>
-                  <Ionicons name="calendar-outline" size={13} color={theme.colors.primary} />
-                  <Text style={styles.eventMetaText}>{formatDate(invitation.akad_date)}</Text>
-                </View>
-                {formatTime(invitation.akad_time_start, invitation.akad_time_end) && (
-                  <View style={styles.eventMetaItem}>
-                    <Ionicons name="time-outline" size={13} color={theme.colors.primary} />
-                    <Text style={styles.eventMetaText}>
-                      {formatTime(invitation.akad_time_start, invitation.akad_time_end)}
-                    </Text>
+
+              {/* Overview 4 cards */}
+              <View style={styles.statsGrid}>
+                {[
+                  { icon: 'eye-outline',         label: 'Views',  value: viewsCount,  color: theme.colors.primary },
+                  { icon: 'people-outline',       label: 'Tamu',   value: guestsCount, color: theme.colors.accent  },
+                  { icon: 'chatbubbles-outline',  label: 'RSVP',   value: rsvpsCount,  color: theme.colors.success },
+                  { icon: 'trending-up-outline',  label: 'Rate',   value: `${engagementRate}%`, color: '#A855F7' },
+                ].map(s => (
+                  <View key={s.label} style={[styles.statsCard, { borderTopColor: s.color }]}>
+                    <View style={[styles.statsIconBg, { backgroundColor: s.color + '15' }]}>
+                      <Ionicons name={s.icon} size={16} color={s.color} />
+                    </View>
+                    <Text style={[styles.statsValue, { color: s.color }]}>{s.value}</Text>
+                    <Text style={styles.statsLabel}>{s.label}</Text>
                   </View>
-                )}
+                ))}
               </View>
-            </LinearGradient>
-          </View>
 
-          {/* Resepsi */}
-          <View style={[styles.eventCard, { marginTop: theme.spacing.sm }]}>
-            <LinearGradient
-              colors={[theme.colors.accent + '15', theme.colors.accent + '04']}
-              style={styles.eventCardInner}
-            >
-              <View style={styles.eventHeader}>
-                <View style={[styles.eventIconBg, { backgroundColor: theme.colors.accent + '22' }]}>
-                  <Ionicons name="restaurant-outline" size={18} color={theme.colors.accent} />
-                </View>
-                <View style={styles.eventHeaderText}>
-                  <Text style={styles.eventType}>Resepsi</Text>
-                  <Text style={styles.eventLocation} numberOfLines={1}>{invitation.reception_location || '-'}</Text>
-                </View>
-              </View>
-              <View style={styles.eventMeta}>
-                <View style={styles.eventMetaItem}>
-                  <Ionicons name="calendar-outline" size={13} color={theme.colors.accent} />
-                  <Text style={styles.eventMetaText}>{formatDate(invitation.reception_date)}</Text>
-                </View>
-                {formatTime(invitation.reception_time_start, invitation.reception_time_end) && (
-                  <View style={styles.eventMetaItem}>
-                    <Ionicons name="time-outline" size={13} color={theme.colors.accent} />
-                    <Text style={styles.eventMetaText}>
-                      {formatTime(invitation.reception_time_start, invitation.reception_time_end)}
-                    </Text>
+              {/* Funnel bar */}
+              <View style={styles.statsCard2}>
+                <View style={styles.funnelRow}>
+                  <View style={styles.funnelItem}>
+                    <Text style={styles.funnelNum}>{viewsCount}</Text>
+                    <Text style={styles.funnelLbl}>Views</Text>
                   </View>
-                )}
+                  <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
+                  <View style={styles.funnelItem}>
+                    <Text style={styles.funnelNum}>{rsvpsCount}</Text>
+                    <Text style={styles.funnelLbl}>RSVP</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
+                  <View style={styles.funnelItem}>
+                    <Text style={[styles.funnelNum, { color: '#A855F7' }]}>{engagementRate}%</Text>
+                    <Text style={styles.funnelLbl}>Engagement</Text>
+                  </View>
+                </View>
+                <View style={styles.funnelTrack}>
+                  <LinearGradient
+                    colors={theme.colors.gradient.primary}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.funnelFill, { width: `${Math.min(parseFloat(engagementRate), 100)}%` }]}
+                  />
+                </View>
               </View>
-            </LinearGradient>
-          </View>
 
-          {/* Alamat */}
-          {invitation.full_address ? (
-            <View style={[styles.eventCard, { marginTop: theme.spacing.sm }]}>
-              <View style={styles.addressCard}>
-                <View style={[styles.eventIconBg, { backgroundColor: theme.colors.success + '18' }]}>
-                  <Ionicons name="map-outline" size={18} color={theme.colors.success} />
+              {/* Device breakdown */}
+              {(mobileViews + desktopViews + tabletViews) > 0 && (
+                <View style={styles.statsCard2}>
+                  <Text style={styles.statsCard2Title}>Perangkat</Text>
+                  {[
+                    { icon: 'phone-portrait-outline', label: 'Mobile',  value: mobileViews,  color: theme.colors.primary },
+                    { icon: 'desktop-outline',         label: 'Desktop', value: desktopViews, color: theme.colors.success },
+                    { icon: 'tablet-portrait-outline', label: 'Tablet',  value: tabletViews,  color: theme.colors.accent  },
+                  ].map((d, i) => {
+                    const pct = Math.round((d.value / totalDeviceViews) * 100);
+                    return (
+                      <View key={d.label} style={[styles.deviceRow, i > 0 && { marginTop: 10 }]}>
+                        <View style={[styles.deviceIconBg, { backgroundColor: d.color + '15' }]}>
+                          <Ionicons name={d.icon} size={14} color={d.color} />
+                        </View>
+                        <View style={{ flex: 1, gap: 4 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={styles.deviceLabel}>{d.label}</Text>
+                            <Text style={[styles.deviceCount, { color: d.color }]}>{d.value} <Text style={styles.devicePct}>({pct}%)</Text></Text>
+                          </View>
+                          <ProgressBar value={d.value} total={totalDeviceViews} color={d.color} />
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
-                <View style={styles.addressText}>
-                  <Text style={styles.eventType}>Alamat Lengkap</Text>
-                  <Text style={styles.addressValue}>{invitation.full_address}</Text>
+              )}
+
+              {/* Last activity */}
+              {stats && (
+                <View style={styles.statsCard2}>
+                  <View style={styles.activityRow}>
+                    <View style={[styles.activityIconBg, { backgroundColor: theme.colors.primary + '15' }]}>
+                      <Ionicons name="time-outline" size={15} color={theme.colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.activityLbl}>Terakhir dilihat</Text>
+                      <Text style={styles.activityVal}>{stats.last_viewed_at || 'Belum pernah'}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.activityRow, { marginTop: 10 }]}>
+                    <View style={[styles.activityIconBg, { backgroundColor: theme.colors.success + '15' }]}>
+                      <Ionicons name="chatbubble-outline" size={15} color={theme.colors.success} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.activityLbl}>RSVP terakhir</Text>
+                      <Text style={styles.activityVal}>{stats.last_rsvp_at || 'Belum ada RSVP'}</Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
+              )}
             </View>
-          ) : null}
-        </View>
+          );
+        })()}
 
         <View style={{ height: theme.spacing.xxl }} />
       </ScrollView>
@@ -900,6 +951,159 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: theme.colors.divider,
     marginVertical: 8,
+  },
+
+  // ── STATISTIK INLINE ──
+  statsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
+  },
+  statsDetailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  statsDetailText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.semibold,
+  },
+
+  // 4-card grid
+  statsGrid: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  statsCard: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.sm,
+    alignItems: 'center',
+    gap: 3,
+    borderTopWidth: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statsIconBg: {
+    width: 30, height: 30, borderRadius: 9,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 2,
+  },
+  statsValue: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.extrabold,
+  },
+  statsLabel: {
+    fontSize: 10,
+    color: theme.colors.textSecondary,
+    fontWeight: theme.fontWeight.medium,
+  },
+
+  // Funnel + device card
+  statsCard2: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statsCard2Title: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: theme.spacing.sm,
+  },
+
+  // Funnel
+  funnelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: theme.spacing.sm,
+  },
+  funnelItem: { alignItems: 'center', gap: 2 },
+  funnelNum: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+  },
+  funnelLbl: {
+    fontSize: 10,
+    color: theme.colors.textSecondary,
+  },
+  funnelTrack: {
+    height: 6,
+    backgroundColor: theme.colors.background,
+    borderRadius: 3,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  funnelFill: { height: '100%', borderRadius: 3, minWidth: 4 },
+
+  // Device
+  deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  deviceIconBg: {
+    width: 30, height: 30, borderRadius: 9,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
+  },
+  deviceLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.text,
+  },
+  deviceCount: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+  },
+  devicePct: {
+    fontSize: 10,
+    fontWeight: theme.fontWeight.regular,
+    color: theme.colors.textSecondary,
+  },
+
+  // Activity
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  activityIconBg: {
+    width: 32, height: 32, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
+  },
+  activityLbl: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  activityVal: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,33 @@ import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
 import { guestService } from '../services/invitationService';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const CATEGORY_LABELS = { family: 'Keluarga', friend: 'Teman', colleague: 'Rekan' };
+const CATEGORY_COLORS = {
+  family:    theme.colors.primary,
+  friend:    theme.colors.success,
+  colleague: theme.colors.accent,
+};
+
+// ─── Mini bar chart ───────────────────────────────────────────────────────────
+const HourBar = ({ hour, count, max, color }) => {
+  const pct = max > 0 ? count / max : 0;
+  return (
+    <View style={barStyles.wrap}>
+      <View style={barStyles.barBg}>
+        <View style={[barStyles.barFill, { height: `${Math.max(pct * 100, 4)}%`, backgroundColor: color }]} />
+      </View>
+      <Text style={barStyles.label}>{hour}</Text>
+    </View>
+  );
+};
+const barStyles = StyleSheet.create({
+  wrap:    { alignItems: 'center', flex: 1 },
+  barBg:   { width: '70%', height: 60, backgroundColor: theme.colors.border, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: 4 },
+  label:   { fontSize: 9, color: theme.colors.textTertiary, marginTop: 3 },
+});
+
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 const ProgressBar = ({ value, total, color }) => {
   const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0;
@@ -26,39 +53,8 @@ const ProgressBar = ({ value, total, color }) => {
   );
 };
 const pbStyles = StyleSheet.create({
-  bg:   { height: 5, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
+  bg:   { height: 6, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3 },
-});
-
-// ─── Stat mini card ───────────────────────────────────────────────────────────
-const StatCard = ({ icon, color, value, label, sub }) => (
-  <View style={[statStyles.card, { borderLeftColor: color }]}>
-    <View style={[statStyles.iconBg, { backgroundColor: color + '18' }]}>
-      <Ionicons name={icon} size={18} color={color} />
-    </View>
-    <Text style={[statStyles.value, { color }]}>{value}</Text>
-    <Text style={statStyles.label}>{label}</Text>
-    {sub ? <Text style={statStyles.sub}>{sub}</Text> : null}
-  </View>
-);
-const statStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    borderLeftWidth: 3,
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  iconBg: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
-  value: { fontSize: theme.fontSize.xxl, fontWeight: theme.fontWeight.bold },
-  label: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.medium },
-  sub:   { fontSize: 10, color: theme.colors.textTertiary },
 });
 
 // ─── Toggle row ───────────────────────────────────────────────────────────────
@@ -107,22 +103,23 @@ const ScanHubScreen = ({ route, navigation }) => {
   const [scanCheckin,   setScanCheckin]   = useState(true);
   const [scanSouvenir,  setScanSouvenir]  = useState(true);
   const [scanCheckout,  setScanCheckout]  = useState(false);
-  const [multiSouvenir, setMultiSouvenir] = useState(false); // allow 2nd souvenir scan
+  const [multiSouvenir, setMultiSouvenir] = useState(false);
 
-  // ── Live stats ──
-  const [stats,      setStats]      = useState(null);
+  // ── Analytics data ──
+  const [data,       setData]       = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab,  setActiveTab]  = useState('checkin'); // 'checkin' | 'souvenir' | 'checkout'
 
-  useFocusEffect(useCallback(() => { loadStats(); }, []));
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
-  const loadStats = async () => {
+  const loadData = async () => {
     try {
       const res = await guestService.getScanAnalytics(token, invitation.id);
-      setStats(res.analytics);
+      setData(res.analytics);
     } catch (_) {}
   };
 
-  const onRefresh = async () => { setRefreshing(true); await loadStats(); setRefreshing(false); };
+  const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
   // ── Build active modes for scanner ──
   const buildScanModes = () => {
@@ -139,17 +136,35 @@ const ScanHubScreen = ({ route, navigation }) => {
     if (!canStartScan) return;
     navigation.navigate('QrScanner', {
       invitation,
-      activeModes:    buildScanModes(),
+      activeModes:  buildScanModes(),
       multiSouvenir,
     });
   };
 
-  const total     = stats?.total_guests   ?? 0;
-  const checkedIn = stats?.checked_in     ?? 0;
-  const souvenir  = stats?.souvenir_taken ?? 0;
-  const notIn     = stats?.not_checked_in ?? 0;
-  const ciRate    = stats?.check_in_rate  ?? 0;
-  const svRate    = stats?.souvenir_rate  ?? 0;
+  // ── Derived stats ──
+  const total      = data?.total_guests          ?? 0;
+  const checkedIn  = data?.checked_in            ?? 0;
+  const checkedOut = data?.checked_out           ?? 0;
+  const souvenir   = data?.souvenir_taken         ?? 0;
+  const notIn      = data?.not_checked_in         ?? 0;
+  const noSouvenir = data?.checked_in_no_souvenir ?? 0;
+  const ciRate     = data?.check_in_rate          ?? 0;
+  const svRate     = data?.souvenir_rate          ?? 0;
+  const coRate     = data?.check_out_rate         ?? 0;
+
+  // ── Hourly chart ──
+  const hourData = activeTab === 'checkin'
+    ? (data?.check_in_by_hour  ?? {})
+    : activeTab === 'souvenir'
+    ? (data?.souvenir_by_hour  ?? {})
+    : (data?.check_out_by_hour ?? {});
+  const maxHour   = Math.max(...Object.values(hourData), 1);
+  const hourKeys  = Array.from({ length: 24 }, (_, i) => i);
+  const activeColor = activeTab === 'checkin'
+    ? theme.colors.success
+    : activeTab === 'souvenir'
+    ? '#A855F7'
+    : theme.colors.warning;
 
   return (
     <View style={styles.container}>
@@ -171,11 +186,8 @@ const ScanHubScreen = ({ route, navigation }) => {
                 {invitation.bride_name} & {invitation.groom_name}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => navigation.navigate('ScanAnalytics', { invitation })}
-            >
-              <Ionicons name="analytics-outline" size={20} color="#fff" />
+            <TouchableOpacity style={styles.headerBtn} onPress={onRefresh}>
+              <Ionicons name="refresh-outline" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
 
@@ -193,6 +205,13 @@ const ScanHubScreen = ({ route, navigation }) => {
               <Text style={styles.heroPillNum}>{souvenir}</Text>
               <Text style={styles.heroPillLabel}>Souvenir</Text>
               <Text style={styles.heroPillRate}>{svRate}%</Text>
+            </View>
+            <View style={styles.heroPillDivider} />
+            <View style={styles.heroPill}>
+              <Ionicons name="exit" size={13} color="#FCD34D" />
+              <Text style={styles.heroPillNum}>{checkedOut}</Text>
+              <Text style={styles.heroPillLabel}>Check-out</Text>
+              <Text style={styles.heroPillRate}>{coRate}%</Text>
             </View>
             <View style={styles.heroPillDivider} />
             <View style={styles.heroPill}>
@@ -250,7 +269,6 @@ const ScanHubScreen = ({ route, navigation }) => {
               value={scanCheckout}
               onToggle={setScanCheckout}
             />
-            {/* Multi souvenir — hanya aktif jika souvenir scan ON */}
             <View style={{ borderBottomWidth: 0 }}>
               <ToggleRow
                 icon="repeat-outline"
@@ -303,133 +321,243 @@ const ScanHubScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ── Live Dashboard ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="pulse-outline" size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Dashboard Tracking</Text>
-            <TouchableOpacity
-              style={styles.seeAllBtn}
-              onPress={() => navigation.navigate('ScanAnalytics', { invitation })}
-            >
-              <Text style={styles.seeAllText}>Lihat Detail</Text>
-              <Ionicons name="chevron-forward" size={13} color="#7C3AED" />
-            </TouchableOpacity>
-          </View>
+        {/* ══════════════════════════════════════════════════════════════════════
+            ANALITIK LENGKAP
+        ══════════════════════════════════════════════════════════════════════ */}
 
-          {/* Stat cards 2×2 */}
-          <View style={styles.statsRow}>
-            <StatCard
-              icon="enter"
-              color={theme.colors.success}
-              value={checkedIn}
-              label="Check-in"
-              sub={`${ciRate}% dari total`}
-            />
-            <StatCard
-              icon="gift"
-              color="#A855F7"
-              value={souvenir}
-              label="Souvenir"
-              sub={`${svRate}% dari total`}
-            />
-          </View>
-          <View style={[styles.statsRow, { marginTop: theme.spacing.sm }]}>
-            <StatCard
-              icon="person-remove-outline"
-              color={theme.colors.error}
-              value={notIn}
-              label="Belum Hadir"
-              sub={total > 0 ? `${((notIn / total) * 100).toFixed(0)}% dari total` : '-'}
-            />
-            <StatCard
-              icon="people"
-              color={theme.colors.primary}
-              value={total}
-              label="Total Tamu"
-            />
-          </View>
+        {/* ── Analytics section header ── */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="analytics-outline" size={16} color={theme.colors.textSecondary} />
+          <Text style={styles.sectionTitle}>Analitik Scan</Text>
+        </View>
 
-          {/* Progress bars */}
-          {total > 0 && (
-            <View style={[styles.card, { marginTop: theme.spacing.md, gap: theme.spacing.md }]}>
-              <View style={styles.progressRow}>
-                <View style={styles.progressLabel}>
-                  <Ionicons name="enter-outline" size={13} color={theme.colors.success} />
-                  <Text style={styles.progressLabelText}>Check-in</Text>
-                </View>
-                <ProgressBar value={checkedIn} total={total} color={theme.colors.success} />
-                <Text style={[styles.progressPct, { color: theme.colors.success }]}>{ciRate}%</Text>
+        {/* ── Summary cards 2×2 + checkout full-width ── */}
+        <View style={styles.summaryGrid}>
+          {/* Check-in */}
+          <View style={[styles.summaryCard, { borderLeftColor: theme.colors.success }]}>
+            <View style={styles.summaryCardTop}>
+              <View style={[styles.summaryIcon, { backgroundColor: theme.colors.success + '18' }]}>
+                <Ionicons name="enter" size={20} color={theme.colors.success} />
               </View>
-              <View style={styles.progressRow}>
-                <View style={styles.progressLabel}>
-                  <Ionicons name="gift-outline" size={13} color="#A855F7" />
-                  <Text style={styles.progressLabelText}>Souvenir</Text>
-                </View>
-                <ProgressBar value={souvenir} total={total} color="#A855F7" />
-                <Text style={[styles.progressPct, { color: '#A855F7' }]}>{svRate}%</Text>
-              </View>
+              <Text style={[styles.summaryNum, { color: theme.colors.success }]}>{checkedIn}</Text>
             </View>
-          )}
+            <Text style={styles.summaryLabel}>Check-in</Text>
+            <ProgressBar value={checkedIn} total={total} color={theme.colors.success} />
+            <Text style={styles.summaryRate}>{ciRate}% dari total tamu</Text>
+          </View>
+
+          {/* Souvenir */}
+          <View style={[styles.summaryCard, { borderLeftColor: '#A855F7' }]}>
+            <View style={styles.summaryCardTop}>
+              <View style={[styles.summaryIcon, { backgroundColor: '#A855F715' }]}>
+                <Ionicons name="gift" size={20} color="#A855F7" />
+              </View>
+              <Text style={[styles.summaryNum, { color: '#A855F7' }]}>{souvenir}</Text>
+            </View>
+            <Text style={styles.summaryLabel}>Souvenir Diambil</Text>
+            <ProgressBar value={souvenir} total={total} color="#A855F7" />
+            <Text style={styles.summaryRate}>{svRate}% dari total tamu</Text>
+          </View>
+
+          {/* Belum Hadir */}
+          <View style={[styles.summaryCard, { borderLeftColor: theme.colors.error }]}>
+            <View style={styles.summaryCardTop}>
+              <View style={[styles.summaryIcon, { backgroundColor: theme.colors.error + '18' }]}>
+                <Ionicons name="person-remove-outline" size={20} color={theme.colors.error} />
+              </View>
+              <Text style={[styles.summaryNum, { color: theme.colors.error }]}>{notIn}</Text>
+            </View>
+            <Text style={styles.summaryLabel}>Belum Hadir</Text>
+            <ProgressBar value={notIn} total={total} color={theme.colors.error} />
+            <Text style={styles.summaryRate}>
+              {total > 0 ? ((notIn / total) * 100).toFixed(1) : 0}% dari total tamu
+            </Text>
+          </View>
+
+          {/* Hadir Belum Souvenir */}
+          <View style={[styles.summaryCard, { borderLeftColor: theme.colors.warning }]}>
+            <View style={styles.summaryCardTop}>
+              <View style={[styles.summaryIcon, { backgroundColor: theme.colors.warning + '18' }]}>
+                <Ionicons name="gift-outline" size={20} color={theme.colors.warning} />
+              </View>
+              <Text style={[styles.summaryNum, { color: theme.colors.warning }]}>{noSouvenir}</Text>
+            </View>
+            <Text style={styles.summaryLabel}>Hadir, Belum Souvenir</Text>
+            <ProgressBar value={noSouvenir} total={checkedIn || 1} color={theme.colors.warning} />
+            <Text style={styles.summaryRate}>
+              {checkedIn > 0 ? ((noSouvenir / checkedIn) * 100).toFixed(1) : 0}% dari yang hadir
+            </Text>
+          </View>
+
+          {/* Check-out — full width */}
+          <View style={[styles.summaryCard, styles.summaryCardFull, { borderLeftColor: '#F59E0B' }]}>
+            <View style={styles.summaryCardTop}>
+              <View style={[styles.summaryIcon, { backgroundColor: '#F59E0B18' }]}>
+                <Ionicons name="exit" size={20} color="#F59E0B" />
+              </View>
+              <Text style={[styles.summaryNum, { color: '#F59E0B' }]}>{checkedOut}</Text>
+            </View>
+            <Text style={styles.summaryLabel}>Check-out</Text>
+            <ProgressBar value={checkedOut} total={checkedIn || 1} color="#F59E0B" />
+            <Text style={styles.summaryRate}>{coRate}% dari yang hadir</Text>
+          </View>
         </View>
 
-        {/* ── Quick Actions ── */}
+        {/* ── Hourly chart ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="flash-outline" size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Aksi Cepat</Text>
+            <Text style={[styles.sectionTitle, { flex: 1 }]}>Distribusi Per Jam</Text>
+            <View style={styles.tabToggle}>
+              {[
+                { key: 'checkin',  label: 'Check-in',  icon: 'enter-outline', color: theme.colors.success },
+                { key: 'souvenir', label: 'Souvenir',  icon: 'gift-outline',  color: '#A855F7' },
+                { key: 'checkout', label: 'Check-out', icon: 'exit-outline',  color: theme.colors.warning },
+              ].map(t => (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[
+                    styles.tabBtn,
+                    activeTab === t.key && { backgroundColor: t.color + '25', borderColor: t.color },
+                  ]}
+                  onPress={() => setActiveTab(t.key)}
+                >
+                  <Ionicons
+                    name={t.icon}
+                    size={13}
+                    color={activeTab === t.key ? t.color : theme.colors.textSecondary}
+                  />
+                  <Text style={[
+                    styles.tabBtnText,
+                    activeTab === t.key && { color: t.color, fontWeight: theme.fontWeight.semibold },
+                  ]}>
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => navigation.navigate('GuestList', { invitation })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.quickIcon, { backgroundColor: theme.colors.success + '18' }]}>
-                <Ionicons name="people-outline" size={22} color={theme.colors.success} />
-              </View>
-              <Text style={styles.quickLabel}>Daftar Tamu</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => navigation.navigate('ScanAnalytics', { invitation })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.quickIcon, { backgroundColor: '#7C3AED18' }]}>
-                <Ionicons name="analytics-outline" size={22} color="#7C3AED" />
+          <View style={styles.chartCard}>
+            {Object.values(hourData).every(v => v === 0) ? (
+              <View style={styles.emptyChart}>
+                <Ionicons name="bar-chart-outline" size={36} color={theme.colors.border} />
+                <Text style={styles.emptyChartText}>Belum ada data</Text>
               </View>
-              <Text style={styles.quickLabel}>Analitik</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => navigation.navigate('RsvpList', { invitation })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.quickIcon, { backgroundColor: theme.colors.info + '18' }]}>
-                <Ionicons name="chatbubbles-outline" size={22} color={theme.colors.info} />
+            ) : (
+              <View style={styles.barChart}>
+                {hourKeys.map(h => (
+                  <HourBar key={h} hour={h} count={hourData[h] || 0} max={maxHour} color={activeColor} />
+                ))}
               </View>
-              <Text style={styles.quickLabel}>RSVP</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickBtn}
-              onPress={() => navigation.navigate('Statistics', { invitation })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.quickIcon, { backgroundColor: theme.colors.accent + '18' }]}>
-                <Ionicons name="stats-chart-outline" size={22} color={theme.colors.accent} />
-              </View>
-              <Text style={styles.quickLabel}>Statistik</Text>
-            </TouchableOpacity>
+            )}
+            <Text style={styles.chartCaption}>Jam (0–23)</Text>
           </View>
         </View>
+
+        {/* ── Per kategori tamu ── */}
+        {data?.by_category && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitleDark}>Per Kategori Tamu</Text>
+            <View style={styles.analyticsCard}>
+              {Object.entries(data.by_category).map(([cat, catStats]) => {
+                if (catStats.total === 0) return null;
+                const color = CATEGORY_COLORS[cat] || theme.colors.primary;
+                return (
+                  <View key={cat} style={styles.catRow}>
+                    <View style={[styles.catDot, { backgroundColor: color }]} />
+                    <View style={styles.catInfo}>
+                      <View style={styles.catTopRow}>
+                        <Text style={styles.catLabel}>{CATEGORY_LABELS[cat] ?? cat}</Text>
+                        <Text style={styles.catTotal}>{catStats.total} tamu</Text>
+                      </View>
+                      <View style={styles.catBars}>
+                        <View style={styles.catBarRow}>
+                          <Ionicons name="enter-outline" size={11} color={theme.colors.success} />
+                          <View style={styles.catBarWrap}>
+                            <ProgressBar value={catStats.checked_in} total={catStats.total} color={theme.colors.success} />
+                          </View>
+                          <Text style={styles.catBarNum}>{catStats.checked_in}</Text>
+                        </View>
+                        <View style={styles.catBarRow}>
+                          <Ionicons name="gift-outline" size={11} color="#A855F7" />
+                          <View style={styles.catBarWrap}>
+                            <ProgressBar value={catStats.souvenir} total={catStats.total} color="#A855F7" />
+                          </View>
+                          <Text style={styles.catBarNum}>{catStats.souvenir}</Text>
+                        </View>
+                        {catStats.checked_out !== undefined && (
+                          <View style={styles.catBarRow}>
+                            <Ionicons name="exit-outline" size={11} color={theme.colors.warning} />
+                            <View style={styles.catBarWrap}>
+                              <ProgressBar value={catStats.checked_out} total={catStats.total} color={theme.colors.warning} />
+                            </View>
+                            <Text style={styles.catBarNum}>{catStats.checked_out}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Aktivitas terbaru ── */}
+        {data?.recent_activity && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitleDark}>Aktivitas Terbaru</Text>
+            <View style={styles.analyticsCard}>
+              {data.recent_activity.length === 0 ? (
+                <View style={styles.emptyActivity}>
+                  <Ionicons name="time-outline" size={32} color={theme.colors.border} />
+                  <Text style={styles.emptyActivityText}>Belum ada aktivitas</Text>
+                </View>
+              ) : (
+                data.recent_activity.map((item, idx) => {
+                  const isCheckin  = item.event === 'checkin';
+                  const isCheckout = item.event === 'checkout';
+                  const evColor    = isCheckin ? theme.colors.success : isCheckout ? theme.colors.warning : '#A855F7';
+                  const evIcon     = isCheckin ? 'enter' : isCheckout ? 'exit' : 'gift';
+                  const evLabel    = isCheckin ? 'Check-in' : isCheckout ? 'Check-out' : 'Souvenir';
+                  const catColor   = CATEGORY_COLORS[item.category] || theme.colors.primary;
+                  return (
+                    <View
+                      key={`${item.id}-${item.event}`}
+                      style={[styles.activityRow, idx > 0 && styles.activityRowBorder]}
+                    >
+                      <View style={[styles.activityIcon, { backgroundColor: evColor + '18' }]}>
+                        <Ionicons name={evIcon} size={16} color={evColor} />
+                      </View>
+                      <View style={styles.activityInfo}>
+                        <Text style={styles.activityName}>{item.name}</Text>
+                        <View style={styles.activityMeta}>
+                          <View style={[styles.activityCatDot, { backgroundColor: catColor }]} />
+                          <Text style={styles.activityCat}>{CATEGORY_LABELS[item.category] ?? item.category}</Text>
+                          <Text style={styles.activitySep}>·</Text>
+                          <Text style={[styles.activityEvent, { color: evColor }]}>{evLabel}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.activityTime}>
+                        {new Date(item.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── Info box ── */}
         <View style={styles.section}>
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={18} color={theme.colors.info} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color={theme.colors.info}
+              style={{ flexShrink: 0, marginTop: 1 }}
+            />
             <Text style={styles.infoText}>
               Aktifkan fitur yang dibutuhkan, lalu tekan <Text style={styles.infoBold}>Mulai Scan</Text>. Scanner akan menampilkan mode yang aktif saja. Fitur <Text style={styles.infoBold}>Souvenir Ganda</Text> memungkinkan tamu scan souvenir 2 kali — cocok untuk acara dengan 2 jenis souvenir berbeda.
             </Text>
@@ -469,20 +597,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
-    gap: 0,
   },
   heroPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 5,
+    justifyContent: 'center', gap: 4,
   },
   heroPillDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 4 },
-  heroPillNum: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: '#fff' },
-  heroPillLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)' },
+  heroPillNum: { fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, color: '#fff' },
+  heroPillLabel: { fontSize: 9, color: 'rgba(255,255,255,0.65)' },
   heroPillRate: {
-    fontSize: 10, color: 'rgba(255,255,255,0.5)',
+    fontSize: 9, color: 'rgba(255,255,255,0.5)',
     backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 5, paddingVertical: 1,
-    borderRadius: 6,
+    paddingHorizontal: 4, paddingVertical: 1,
+    borderRadius: 5,
   },
 
   scrollContent: { padding: theme.spacing.lg, gap: theme.spacing.lg },
@@ -497,10 +624,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold,
     color: theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6,
   },
-  seeAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  seeAllText: { fontSize: theme.fontSize.sm, color: '#7C3AED', fontWeight: theme.fontWeight.semibold },
+  sectionTitleDark: {
+    fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+  },
 
-  // Card
+  // Card (toggle settings)
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.xl,
@@ -511,6 +640,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
+    elevation: 2,
+  },
+
+  // Analytics card (white card for category / activity)
+  analyticsCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
     elevation: 2,
   },
 
@@ -533,26 +674,86 @@ const styles = StyleSheet.create({
   startBtnTitle: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: '#fff' },
   startBtnSub: { fontSize: theme.fontSize.xs, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
 
-  // Stats
-  statsRow: { flexDirection: 'row', gap: theme.spacing.sm },
-
-  // Progress
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  progressLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 80 },
-  progressLabelText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.medium },
-  progressPct: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold, minWidth: 36, textAlign: 'right' },
-
-  // Quick actions
-  quickGrid: { flexDirection: 'row', gap: theme.spacing.sm },
-  quickBtn: {
-    flex: 1, alignItems: 'center', gap: 6,
-    paddingVertical: theme.spacing.md,
+  // Summary cards grid
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  summaryCard: {
+    width: '48%',
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 3,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  summaryCardFull: { width: '100%' },
+  summaryCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  summaryNum: { fontSize: theme.fontSize.xxl, fontWeight: theme.fontWeight.bold },
+  summaryLabel: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.medium },
+  summaryRate: { fontSize: 10, color: theme.colors.textTertiary, marginTop: 2 },
+
+  // Tab toggle (hourly chart)
+  tabToggle: { flexDirection: 'row', gap: 5 },
+  tabBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
     borderWidth: 1, borderColor: theme.colors.border,
   },
-  quickIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  quickLabel: { fontSize: 11, color: theme.colors.text, fontWeight: theme.fontWeight.medium, textAlign: 'center' },
+  tabBtnText: { fontSize: 10, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.medium },
+
+  // Chart
+  chartCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  barChart: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 2 },
+  chartCaption: { fontSize: 10, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 8 },
+  emptyChart: { height: 80, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  emptyChartText: { fontSize: theme.fontSize.sm, color: theme.colors.textTertiary },
+
+  // Category rows
+  catRow: {
+    flexDirection: 'row', gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: theme.colors.divider,
+  },
+  catDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
+  catInfo: { flex: 1, gap: 6 },
+  catTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  catLabel: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
+  catTotal: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+  catBars: { gap: 4 },
+  catBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  catBarWrap: { flex: 1 },
+  catBarNum: { fontSize: 11, color: theme.colors.textSecondary, minWidth: 20, textAlign: 'right' },
+
+  // Activity
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.sm },
+  activityRowBorder: { borderTopWidth: 1, borderTopColor: theme.colors.divider },
+  activityIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  activityInfo: { flex: 1 },
+  activityName: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
+  activityMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  activityCatDot: { width: 6, height: 6, borderRadius: 3 },
+  activityCat: { fontSize: 11, color: theme.colors.textSecondary },
+  activitySep: { fontSize: 11, color: theme.colors.textTertiary },
+  activityEvent: { fontSize: 11, fontWeight: theme.fontWeight.semibold },
+  activityTime: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+
+  // Empty states
+  emptyActivity: { alignItems: 'center', paddingVertical: theme.spacing.lg, gap: 8 },
+  emptyActivityText: { fontSize: theme.fontSize.sm, color: theme.colors.textTertiary },
 
   // Info box
   infoBox: {

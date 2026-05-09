@@ -21,7 +21,6 @@ import AddGuestScreen from '../screens/AddGuestScreen';
 import EditGuestScreen from '../screens/EditGuestScreen';
 import GuestQrScreen from '../screens/GuestQrScreen';
 import QrScannerScreen from '../screens/QrScannerScreen';
-import ScanAnalyticsScreen from '../screens/ScanAnalyticsScreen';
 import ImportGuestScreen from '../screens/ImportGuestScreen';
 import RsvpListScreen from '../screens/RsvpListScreen';
 import StatisticsScreen from '../screens/StatisticsScreen';
@@ -133,7 +132,6 @@ const AppNavigator = () => {
           <Stack.Screen name="GuestQr" component={GuestQrScreen} />
           <Stack.Screen name="QrScanner" component={QrScannerScreen} />
           <Stack.Screen name="ScanHub" component={ScanHubScreen} />
-          <Stack.Screen name="ScanAnalytics" component={ScanAnalyticsScreen} />
           <Stack.Screen name="ImportGuest" component={ImportGuestScreen} />
           <Stack.Screen name="RsvpList" component={RsvpListScreen} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} />

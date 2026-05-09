@@ -254,21 +254,13 @@ const GuestListScreen = ({ route, navigation }) => {
               <Text style={styles.headerTitle}>Daftar Tamu</Text>
               <Text style={styles.headerSubtitle}>{guests.length} tamu terdaftar</Text>
             </View>
-            {/* Analytics + Scan QR buttons */}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => navigation.navigate('ScanAnalytics', { invitation })}
-              >
-                <Ionicons name="analytics-outline" size={20} color={theme.colors.white} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => navigation.navigate('ScanHub', { invitation })}
-              >
-                <Ionicons name="qr-code-outline" size={20} color={theme.colors.white} />
-              </TouchableOpacity>
-            </View>
+            {/* Scan QR button */}
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('ScanHub', { invitation })}
+            >
+              <Ionicons name="qr-code-outline" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </LinearGradient>
