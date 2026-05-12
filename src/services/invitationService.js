@@ -214,6 +214,97 @@ export const invitationService = {
       throw error;
     }
   },
+
+  /**
+   * Get gift orders for an invitation
+   */
+  getGifts: async (token, invitationId) => {
+    try {
+      const response = await api.get(`/invitations/${invitationId}/gifts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Toggle gift feature on/off
+   */
+  toggleGift: async (token, invitationId, enabled) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/gift-toggle`,
+        { gift_enabled: enabled },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Get bank accounts for an invitation
+   */
+  getBankAccounts: async (token, invitationId) => {
+    try {
+      const response = await api.get(`/invitations/${invitationId}/bank-accounts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Add a bank account
+   */
+  addBankAccount: async (token, invitationId, data) => {
+    try {
+      const response = await api.post(
+        `/invitations/${invitationId}/bank-accounts`,
+        data,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Update a bank account
+   */
+  updateBankAccount: async (token, invitationId, accountId, data) => {
+    try {
+      const response = await api.put(
+        `/invitations/${invitationId}/bank-accounts/${accountId}`,
+        data,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a bank account
+   */
+  deleteBankAccount: async (token, invitationId, accountId) => {
+    try {
+      const response = await api.delete(
+        `/invitations/${invitationId}/bank-accounts/${accountId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 export const guestService = {

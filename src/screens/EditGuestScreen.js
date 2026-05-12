@@ -58,8 +58,12 @@ const EditGuestScreen = ({ route, navigation }) => {
     setLoading(true);
     try {
       await guestService.updateGuest(token, invitation.id, guest.id, {
-        ...formData,
-        pax: parseInt(formData.pax),
+        name:     formData.name.trim(),
+        phone:    formData.phone.trim() || undefined,
+        email:    formData.email.trim() || undefined,
+        address:  formData.address.trim() || undefined,
+        pax:      parseInt(formData.pax) || 1,
+        category: formData.category,
       });
       showAlert('Berhasil!', 'Data tamu berhasil diperbarui', 'success', [
         { text: 'OK', style: 'primary', onPress: () => navigation.goBack() },

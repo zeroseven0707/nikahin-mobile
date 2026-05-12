@@ -222,6 +222,13 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       badge: invitation.rsvps_count || 0,
       onPress: () => navigation.navigate('RsvpList', { invitation }),
     },
+    {
+      icon: 'gift-outline',
+      color: '#EC4899',
+      bg: '#EC489915',
+      label: 'Hadiah',
+      onPress: () => navigation.navigate('GiftTracking', { invitation }),
+    },
   ];
 
   return (

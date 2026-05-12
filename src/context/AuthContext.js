@@ -15,6 +15,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [onboardingDone, setOnboardingDone] = useState(false);
 
   useEffect(() => {
     loadStoredAuth();
@@ -22,18 +23,26 @@ export const AuthProvider = ({ children }) => {
 
   const loadStoredAuth = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('token');
-      const storedUser = await AsyncStorage.getItem('user');
-      
+      const [storedToken, storedUser, onboarding] = await Promise.all([
+        AsyncStorage.getItem('token'),
+        AsyncStorage.getItem('user'),
+        AsyncStorage.getItem('onboarding_done'),
+      ]);
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
       }
+      setOnboardingDone(onboarding === '1');
     } catch (error) {
       console.error('Error loading auth:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const completeOnboarding = async () => {
+    await AsyncStorage.setItem('onboarding_done', '1');
+    setOnboardingDone(true);
   };
 
   const login = async (userData, authToken) => {
@@ -71,6 +80,8 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     loading,
+    onboardingDone,
+    completeOnboarding,
     login,
     logout,
     updateUser,

@@ -35,6 +35,8 @@ import PaymentScreen from '../screens/PaymentScreen';
 import AboutScreen from '../screens/AboutScreen';
 import HelpScreen from '../screens/HelpScreen';
 import ScanHubScreen from '../screens/ScanHubScreen';
+import GiftTrackingScreen from '../screens/GiftTrackingScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -100,10 +102,15 @@ const MainTabs = () => {
 };
 
 const AppNavigator = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, onboardingDone, completeOnboarding } = useAuth();
 
   if (loading) {
-    return null; // Or loading screen
+    return null;
+  }
+
+  // First launch — show onboarding
+  if (!onboardingDone) {
+    return <OnboardingScreen onDone={completeOnboarding} />;
   }
 
   return (
@@ -132,6 +139,7 @@ const AppNavigator = () => {
           <Stack.Screen name="GuestQr" component={GuestQrScreen} />
           <Stack.Screen name="QrScanner" component={QrScannerScreen} />
           <Stack.Screen name="ScanHub" component={ScanHubScreen} />
+          <Stack.Screen name="GiftTracking" component={GiftTrackingScreen} />
           <Stack.Screen name="ImportGuest" component={ImportGuestScreen} />
           <Stack.Screen name="RsvpList" component={RsvpListScreen} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} />

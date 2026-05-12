@@ -218,24 +218,28 @@ const TemplateScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header selalu di luar FlatList agar TextInput tidak unmount */}
       <LinearGradient
-        colors={theme.colors.gradient.primary}
+        colors={['#2D1B69', '#4C1D95', '#6B4CE6']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
         <SafeAreaView edges={['top']}>
+          {/* Top row */}
           <View style={styles.headerInner}>
-            <View>
-              <Text style={styles.headerLabel}>Katalog</Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerEyebrow}>PILIH DESAIN</Text>
               <Text style={styles.headerTitle}>Template</Text>
+              <Text style={styles.headerTagline}>Undangan Digital Premium</Text>
             </View>
             {total > 0 && (
               <View style={styles.headerBadge}>
                 <Text style={styles.headerBadgeNum}>{total}</Text>
-                <Text style={styles.headerBadgeLabel}>Tersedia</Text>
+                <Text style={styles.headerBadgeLabel}>Template</Text>
               </View>
             )}
           </View>
+
+          {/* Search */}
           <View style={styles.searchWrap}>
             <View style={styles.searchBox}>
               <Ionicons name="search-outline" size={17} color={theme.colors.textSecondary} />
@@ -308,44 +312,56 @@ const styles = StyleSheet.create({
   header: {},
   headerInner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
-  headerLabel: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.semibold,
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 3,
+  headerLeft: { flex: 1 },
+  headerEyebrow: {
+    fontSize: 10,
+    fontWeight: theme.fontWeight.bold,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 2,
+    marginBottom: 4,
   },
   headerTitle: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
+    fontSize: 30,
+    fontWeight: theme.fontWeight.extrabold,
     color: theme.colors.white,
+    letterSpacing: -0.5,
+    lineHeight: 34,
+  },
+  headerTagline: {
+    fontSize: theme.fontSize.xs,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 3,
+    fontWeight: theme.fontWeight.medium,
+    letterSpacing: 0.3,
   },
   headerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: theme.borderRadius.xl,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: 'rgba(255,255,255,0.2)',
+    minWidth: 64,
   },
   headerBadgeNum: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
+    fontSize: theme.fontSize.xxl,
+    fontWeight: theme.fontWeight.extrabold,
     color: theme.colors.white,
-    lineHeight: 24,
+    lineHeight: 28,
   },
   headerBadgeLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: theme.fontWeight.medium,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: theme.fontWeight.semibold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   searchWrap: {
     paddingHorizontal: theme.spacing.lg,

@@ -29,15 +29,31 @@
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "CAMERA",
+        "VIBRATE"
       ],
       "blockedPermissions": [
         "READ_PHONE_STATE",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
       ]
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aplikasi membutuhkan akses kamera untuk memindai QR code tamu saat check-in."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aplikasi membutuhkan akses galeri untuk mengunggah foto ke undangan."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "590e3de1-72c7-4708-9c1d-268968f40545"

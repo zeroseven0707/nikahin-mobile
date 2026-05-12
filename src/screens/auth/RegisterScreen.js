@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -164,6 +165,25 @@ const RegisterScreen = ({ navigation }) => {
                 style={styles.registerButton}
               />
 
+              {/* Privacy Policy & Terms */}
+              <Text style={styles.termsText}>
+                Dengan mendaftar, Anda menyetujui{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://nikahin.online/terms')}
+                >
+                  Syarat & Ketentuan
+                </Text>
+                {' '}dan{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://nikahin.online/privacy')}
+                >
+                  Kebijakan Privasi
+                </Text>
+                {' '}kami.
+              </Text>
+
               <View style={styles.loginRow}>
                 <Text style={styles.loginText}>Sudah punya akun? </Text>
                 <TouchableOpacity
@@ -278,6 +298,19 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.primary,
     fontWeight: theme.fontWeight.semibold,
+  },
+  termsText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  termsLink: {
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.semibold,
+    textDecorationLine: 'underline',
   },
 
   bottomPad: {

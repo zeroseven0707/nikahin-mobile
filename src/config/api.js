@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // Backend Laravel API URL
-export const API_BASE_URL = 'http://192.168.100.144:8000/api';
-export const WEB_BASE_URL = 'http://192.168.100.144:8000'; // For web routes (preview, etc)
+export const API_BASE_URL = 'http://192.168.1.32:8000/api';
+export const WEB_BASE_URL = 'http://192.168.1.32:8000'; // For web routes (preview, etc)
 
 const api = axios.create({
   baseURL: API_BASE_URL,
