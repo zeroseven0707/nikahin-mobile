@@ -19,6 +19,7 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import DateTimePickerComponent from '../components/DateTimePicker';
 import CustomAlert from '../components/CustomAlert';
+import LeafletLocationPicker from '../components/LeafletLocationPicker';
 import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
 import { invitationService } from '../services/invitationService';
@@ -335,13 +336,62 @@ const CreateInvitationWizardScreen = ({ navigation, route }) => {
 
   const renderLocationStep = () => (
     <View>
-      {renderStepHeader('location-outline', 'Alamat Lengkap', 'Informasi alamat detail (opsional)', '#10B981')}
-      <Input label="Alamat Lengkap" placeholder="Jalan, nomor, kota, provinsi" value={formData.full_address} onChangeText={v => set('full_address', v)} leftIcon="map-outline" multiline numberOfLines={3} />
-      <Input label="Latitude (Opsional)" placeholder="-6.200000" value={formData.latitude} onChangeText={v => set('latitude', v)} leftIcon="navigate-outline" keyboardType="numeric" />
-      <Input label="Longitude (Opsional)" placeholder="106.816666" value={formData.longitude} onChangeText={v => set('longitude', v)} leftIcon="navigate-outline" keyboardType="numeric" />
+      {renderStepHeader('location-outline', 'Pilih Lokasi', 'Cari dan tandai lokasi acara di peta', '#10B981')}
+
+      {/* Peta Leaflet */}
+      <Text style={styles.mapLabel}>
+        <Ionicons name="map-outline" size={13} color={theme.colors.textSecondary} />
+        {' '}Tap peta atau cari lokasi untuk menentukan koordinat
+      </Text>
+      <LeafletLocationPicker
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        height={340}
+        onLocationSelect={({ lat, lng, displayName }) => {
+          setFormData(prev => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            // Auto-isi full_address jika masih kosong
+            full_address: prev.full_address.trim() ? prev.full_address : displayName,
+          }));
+        }}
+      />
+
+      {/* Tampilkan koordinat yang sudah dipilih */}
+      {formData.latitude !== '' && formData.longitude !== '' && (
+        <View style={styles.coordDisplay}>
+          <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+          <Text style={styles.coordText}>
+            {parseFloat(formData.latitude).toFixed(6)}, {parseFloat(formData.longitude).toFixed(6)}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setFormData(prev => ({ ...prev, latitude: '', longitude: '' }))}
+            style={styles.coordClear}
+          >
+            <Ionicons name="close-circle-outline" size={18} color={theme.colors.error} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Alamat lengkap */}
+      <View style={{ marginTop: theme.spacing.md }}>
+        <Input
+          label="Alamat Lengkap"
+          placeholder="Jalan, nomor, kota, provinsi"
+          value={formData.full_address}
+          onChangeText={v => set('full_address', v)}
+          leftIcon="map-outline"
+          multiline
+          numberOfLines={3}
+        />
+      </View>
+
       <View style={styles.infoBox}>
         <Ionicons name="information-circle-outline" size={18} color={theme.colors.primary} />
-        <Text style={styles.infoText}>Koordinat GPS membantu tamu menemukan lokasi via Google Maps</Text>
+        <Text style={styles.infoText}>
+          Koordinat GPS membantu tamu menemukan lokasi lewat Google Maps. Cari nama tempat atau tap langsung di peta, lalu tekan <Text style={{ fontWeight: '700' }}>Gunakan</Text>.
+        </Text>
       </View>
     </View>
   );
@@ -709,6 +759,36 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1, fontSize: theme.fontSize.sm,
     color: theme.colors.textSecondary, lineHeight: 20,
+  },
+
+  // ── MAP LABEL + COORD DISPLAY ──
+  mapLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  coordDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.success + '10',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.success + '30',
+    marginTop: theme.spacing.sm,
+  },
+  coordText: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.success,
+    fontWeight: theme.fontWeight.semibold,
+    fontVariant: ['tabular-nums'],
+  },
+  coordClear: {
+    padding: 2,
   },
 
   // ── NAV BUTTONS ──
