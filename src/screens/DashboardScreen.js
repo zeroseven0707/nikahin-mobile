@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
 import { invitationService } from '../services/invitationService';
+import { InvitationCardSkeleton, HeroStripSkeleton } from '../components/Skeleton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDateShort = (dateStr) => {
@@ -243,13 +244,16 @@ const DashboardScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {invitations.length > 0 && (
+            {/* Hero strip — skeleton saat loading, data saat sudah ada */}
+            {loading ? (
+              <HeroStripSkeleton />
+            ) : invitations.length > 0 ? (
               <View style={styles.heroStrip}>
                 {[
-                  { num: invitations.length, label: 'Undangan'    },
-                  { num: published,          label: 'Live'         },
-                  { num: totalViews,         label: 'Total Views'  },
-                  { num: totalGuests,        label: 'Total Tamu'   },
+                  { num: invitations.length, label: 'Undangan'   },
+                  { num: published,          label: 'Live'        },
+                  { num: totalViews,         label: 'Total Views' },
+                  { num: totalGuests,        label: 'Total Tamu'  },
                 ].map((s, i) => (
                   <React.Fragment key={s.label}>
                     {i > 0 && <View style={styles.heroStripDivider} />}
@@ -260,13 +264,21 @@ const DashboardScreen = ({ navigation }) => {
                   </React.Fragment>
                 ))}
               </View>
-            )}
+            ) : null}
           </SafeAreaView>
         </LinearGradient>
 
-        {invitations.length > 0 && (
+        {!loading && invitations.length > 0 && (
           <View style={styles.sectionRow}>
             <Text style={styles.sectionLabel}>Undangan Saya</Text>
+          </View>
+        )}
+
+        {/* Skeleton cards saat loading */}
+        {loading && (
+          <View style={{ paddingTop: theme.spacing.lg }}>
+            <InvitationCardSkeleton />
+            <InvitationCardSkeleton />
           </View>
         )}
       </View>

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, Dimensions,
+  Image, ActivityIndicator, Dimensions, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,24 +9,76 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import CustomAlert from '../components/CustomAlert';
+import { GalleryGridSkeleton } from '../components/Skeleton';
+import { optimizeImage, optimizeImages, formatFileSize, needsOptimization } from '../utils/imageOptimizer';
 import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
 import { galleryService } from '../services/invitationService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const COLS    = 3;
-const GAP     = 3;
-const CELL_W  = (SCREEN_W - GAP * (COLS + 1)) / COLS;
+const COLS   = 3;
+const GAP    = 3;
+const CELL_W = (SCREEN_W - GAP * (COLS + 1)) / COLS;
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ── Upload progress banner ────────────────────────────────────────────────────
+const UploadBanner = ({ current, total, sizeInfo }) => {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  const barAnim = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(barAnim, {
+      toValue: pct / 100,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+
+  return (
+    <View style={styles.uploadBanner}>
+      <View style={styles.uploadBannerRow}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.uploadBannerText}>
+            Mengupload foto {current}/{total}
+          </Text>
+          {sizeInfo ? (
+            <Text style={styles.uploadBannerSub}>{sizeInfo}</Text>
+          ) : null}
+        </View>
+        <Text style={styles.uploadBannerPct}>{pct}%</Text>
+      </View>
+      {/* Progress track */}
+      <View style={styles.uploadTrack}>
+        <Animated.View
+          style={[
+            styles.uploadFill,
+            {
+              width: barAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+};
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
 const GalleryScreen = ({ route, navigation }) => {
   const { invitation } = route.params;
   const { token } = useAuth();
 
-  const [photos, setPhotos]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [alert, setAlert]         = useState({ visible: false, title: '', message: '', type: 'info', buttons: [] });
+  const [photos, setPhotos]             = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [uploadCurrent, setUploadCurrent] = useState(0);
+  const [uploadTotal, setUploadTotal]   = useState(0);
+  const [uploadSizeInfo, setUploadSizeInfo] = useState(null);
+  const [uploading, setUploading]       = useState(false);
+  const [alert, setAlert]               = useState({
+    visible: false, title: '', message: '', type: 'info', buttons: [],
+  });
 
   const showAlert = (title, message, type = 'info', buttons = []) =>
     setAlert({ visible: true, title, message, type, buttons });
@@ -38,16 +90,15 @@ const GalleryScreen = ({ route, navigation }) => {
     try {
       const res = await galleryService.getPhotos(token, invitation.id);
       setPhotos(res.photos || []);
-    } catch (_) {
+    } catch {
       showAlert('Error', 'Gagal memuat galeri', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Pick & upload ──
+  // ── Pick & upload dengan optimisasi ──
   const handleAddPhoto = async () => {
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       showAlert('Izin Diperlukan', 'Aplikasi membutuhkan akses ke galeri foto.', 'warning', [
@@ -59,40 +110,16 @@ const GalleryScreen = ({ route, navigation }) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
-      quality: 0.85,
+      quality: 1,          // ambil original, kita optimize sendiri
       selectionLimit: 10,
+      exif: false,
     });
 
     if (result.canceled || !result.assets?.length) return;
 
-    setUploading(true);
-    let successCount = 0;
-    let failCount    = 0;
-
-    for (const asset of result.assets) {
-      try {
-        const ext      = asset.uri.split('.').pop() || 'jpg';
-        const mimeType = asset.mimeType || `image/${ext}`;
-        const fileName = asset.fileName || `photo_${Date.now()}.${ext}`;
-
-        await galleryService.uploadPhoto(token, invitation.id, asset.uri, fileName, mimeType);
-        successCount++;
-      } catch (_) {
-        failCount++;
-      }
-    }
-
-    setUploading(false);
-    await loadPhotos();
-
-    if (failCount === 0) {
-      showAlert('Berhasil', `${successCount} foto berhasil diupload.`, 'success');
-    } else {
-      showAlert('Selesai', `${successCount} berhasil, ${failCount} gagal.`, 'warning');
-    }
+    await uploadAssets(result.assets);
   };
 
-  // ── Take photo ──
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -102,44 +129,92 @@ const GalleryScreen = ({ route, navigation }) => {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.85,
-    });
-
+    const result = await ImagePicker.launchCameraAsync({ quality: 1, exif: false });
     if (result.canceled || !result.assets?.length) return;
 
-    const asset    = result.assets[0];
-    const ext      = asset.uri.split('.').pop() || 'jpg';
-    const mimeType = asset.mimeType || `image/${ext}`;
-    const fileName = `photo_${Date.now()}.${ext}`;
+    await uploadAssets(result.assets);
+  };
 
+  /**
+   * Core upload pipeline:
+   * 1. Optimize images that need it
+   * 2. Upload one by one with progress
+   */
+  const uploadAssets = async (assets) => {
     setUploading(true);
-    try {
-      await galleryService.uploadPhoto(token, invitation.id, asset.uri, fileName, mimeType);
-      await loadPhotos();
-      showAlert('Berhasil', 'Foto berhasil diupload.', 'success');
-    } catch (_) {
-      showAlert('Error', 'Gagal mengupload foto.', 'error');
-    } finally {
-      setUploading(false);
+    setUploadTotal(assets.length);
+    setUploadCurrent(0);
+
+    let successCount = 0;
+    let failCount    = 0;
+    let savedBytes   = 0;
+
+    for (let i = 0; i < assets.length; i++) {
+      const asset = assets[i];
+      setUploadCurrent(i + 1);
+
+      try {
+        let uploadUri  = asset.uri;
+        let fileName   = asset.fileName || `photo_${Date.now()}.jpg`;
+        let mimeType   = asset.mimeType || 'image/jpeg';
+
+        // ── Optimization step ──
+        if (needsOptimization(asset)) {
+          const originalSize = asset.fileSize || 0;
+          const optimized = await optimizeImage(asset.uri, {
+            maxWidth:  1280,
+            maxHeight: 1280,
+            quality:   0.82,
+          });
+          uploadUri = optimized.uri;
+          fileName  = optimized.fileName;
+          mimeType  = optimized.mimeType;
+
+          // Show size saving info in banner
+          if (originalSize > 0) {
+            // We can't easily get optimized file size without extra stat call,
+            // so just show "optimized" label
+            setUploadSizeInfo(`Mengoptimasi foto ${i + 1}/${assets.length}...`);
+          }
+        } else {
+          setUploadSizeInfo(`Mengupload foto ${i + 1}/${assets.length}`);
+        }
+
+        await galleryService.uploadPhoto(token, invitation.id, uploadUri, fileName, mimeType);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setUploading(false);
+    setUploadSizeInfo(null);
+    setUploadCurrent(0);
+    setUploadTotal(0);
+    await loadPhotos();
+
+    if (failCount === 0) {
+      showAlert('Berhasil', `${successCount} foto berhasil diupload.`, 'success');
+    } else {
+      showAlert('Selesai', `${successCount} berhasil, ${failCount} gagal.`, 'warning');
     }
   };
 
-  // ── Show add options ──
+  // ── Pilih sumber foto ──
   const handleAdd = () => {
     showAlert(
       'Tambah Foto',
       'Pilih sumber foto',
       'info',
       [
-        { text: 'Batal', style: 'cancel' },
+        { text: 'Batal',  style: 'cancel' },
         { text: 'Kamera', style: 'primary', onPress: handleTakePhoto },
         { text: 'Galeri', style: 'primary', onPress: handleAddPhoto },
       ]
     );
   };
 
-  // ── Delete photo ──
+  // ── Delete ──
   const handleDelete = (photo) => {
     showAlert(
       'Hapus Foto',
@@ -153,8 +228,8 @@ const GalleryScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               await galleryService.deletePhoto(token, invitation.id, photo.id);
-              setPhotos(prev => prev.filter(p => p.id !== photo.id));
-            } catch (_) {
+              setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+            } catch {
               showAlert('Error', 'Gagal menghapus foto.', 'error');
             }
           },
@@ -163,27 +238,22 @@ const GalleryScreen = ({ route, navigation }) => {
     );
   };
 
-  // ── Move photo (simple up/down reorder) ──
+  // ── Reorder ──
   const handleMove = async (index, direction) => {
-    const newPhotos = [...photos];
-    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    const newPhotos  = [...photos];
+    const swapIndex  = direction === 'up' ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= newPhotos.length) return;
 
-    // Swap
     [newPhotos[index], newPhotos[swapIndex]] = [newPhotos[swapIndex], newPhotos[index]];
-
-    // Reassign order values
     const reordered = newPhotos.map((p, i) => ({ ...p, order: i + 1 }));
     setPhotos(reordered);
 
     try {
       await galleryService.reorderPhotos(
-        token,
-        invitation.id,
-        reordered.map(p => ({ id: p.id, order: p.order }))
+        token, invitation.id,
+        reordered.map((p) => ({ id: p.id, order: p.order }))
       );
-    } catch (_) {
-      // Revert on failure
+    } catch {
       loadPhotos();
     }
   };
@@ -198,21 +268,18 @@ const GalleryScreen = ({ route, navigation }) => {
         <Text style={styles.orderText}>{index + 1}</Text>
       </View>
 
-      {/* Action overlay */}
+      {/* Overlay actions */}
       <View style={styles.cellOverlay}>
-        {/* Move up */}
         {index > 0 && (
           <TouchableOpacity style={styles.cellBtn} onPress={() => handleMove(index, 'up')}>
             <Ionicons name="chevron-up" size={14} color="#fff" />
           </TouchableOpacity>
         )}
-        {/* Move down */}
         {index < photos.length - 1 && (
           <TouchableOpacity style={styles.cellBtn} onPress={() => handleMove(index, 'down')}>
             <Ionicons name="chevron-down" size={14} color="#fff" />
           </TouchableOpacity>
         )}
-        {/* Delete */}
         <TouchableOpacity
           style={[styles.cellBtn, styles.cellBtnDelete]}
           onPress={() => handleDelete(item)}
@@ -276,16 +343,17 @@ const GalleryScreen = ({ route, navigation }) => {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* Upload progress */}
+      {/* Upload progress banner */}
       {uploading && (
-        <View style={styles.uploadBanner}>
-          <ActivityIndicator size="small" color={theme.colors.primary} />
-          <Text style={styles.uploadBannerText}>Mengupload foto...</Text>
-        </View>
+        <UploadBanner
+          current={uploadCurrent}
+          total={uploadTotal}
+          sizeInfo={uploadSizeInfo}
+        />
       )}
 
       {/* Info bar */}
-      {photos.length > 0 && (
+      {photos.length > 0 && !loading && (
         <View style={styles.infoBar}>
           <Ionicons name="information-circle-outline" size={14} color={theme.colors.textSecondary} />
           <Text style={styles.infoText}>
@@ -294,16 +362,16 @@ const GalleryScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Grid */}
+      {/* Content */}
       {loading ? (
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+        <View style={{ paddingTop: 12 }}>
+          <GalleryGridSkeleton cols={3} rows={3} />
         </View>
       ) : (
         <FlatList
           data={photos}
           renderItem={renderPhoto}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={(item) => item.id.toString()}
           numColumns={COLS}
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
@@ -312,7 +380,7 @@ const GalleryScreen = ({ route, navigation }) => {
         />
       )}
 
-      {/* FAB — only when photos exist */}
+      {/* FAB */}
       {photos.length > 0 && !uploading && (
         <TouchableOpacity style={styles.fab} onPress={handleAdd} activeOpacity={0.85}>
           <LinearGradient
@@ -356,18 +424,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: '#fff' },
-  headerSub: { fontSize: theme.fontSize.xs, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  headerCenter:  { flex: 1, alignItems: 'center' },
+  headerTitle:   { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: '#fff' },
+  headerSub:     { fontSize: theme.fontSize.xs, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
 
   // Upload banner
   uploadBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
-    backgroundColor: theme.colors.primary + '12',
-    paddingHorizontal: theme.spacing.lg, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.primary + '20',
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: 10,
+    paddingBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  uploadBannerText: { fontSize: theme.fontSize.sm, color: theme.colors.primary, fontWeight: theme.fontWeight.medium },
+  uploadBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: 8,
+  },
+  uploadBannerText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+  },
+  uploadBannerSub: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
+  uploadBannerPct: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.primary,
+    minWidth: 36,
+    textAlign: 'right',
+  },
+  uploadTrack: {
+    height: 3,
+    backgroundColor: theme.colors.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 0,
+  },
+  uploadFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 2,
+  },
 
   // Info bar
   infoBar: {
@@ -380,7 +489,7 @@ const styles = StyleSheet.create({
 
   // Grid
   grid: { padding: GAP, flexGrow: 1 },
-  row: { gap: GAP, marginBottom: GAP },
+  row:  { gap: GAP, marginBottom: GAP },
 
   // Cell
   cell: {
@@ -401,7 +510,7 @@ const styles = StyleSheet.create({
   },
   orderText: { fontSize: 9, color: '#fff', fontWeight: theme.fontWeight.bold },
 
-  // Cell overlay (action buttons)
+  // Cell overlay
   cellOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'flex-end',
@@ -415,9 +524,6 @@ const styles = StyleSheet.create({
   },
   cellBtnDelete: { backgroundColor: 'rgba(239,68,68,0.75)' },
 
-  // Loading
-  loadingState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
   // Empty
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl, gap: theme.spacing.md },
   emptyIconBg: {
@@ -425,9 +531,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary + '12',
     justifyContent: 'center', alignItems: 'center',
   },
-  emptyTitle: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
-  emptyText: { fontSize: theme.fontSize.md, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 22 },
-  emptyAddBtn: { borderRadius: theme.borderRadius.lg, overflow: 'hidden', marginTop: theme.spacing.sm },
+  emptyTitle:      { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
+  emptyText:       { fontSize: theme.fontSize.md, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyAddBtn:     { borderRadius: theme.borderRadius.lg, overflow: 'hidden', marginTop: theme.spacing.sm },
   emptyAddBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: theme.spacing.md, paddingHorizontal: theme.spacing.xl, gap: theme.spacing.sm,

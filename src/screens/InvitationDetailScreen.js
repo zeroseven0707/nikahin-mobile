@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import WebViewModal from '../components/WebViewModal';
 import CustomAlert from '../components/CustomAlert';
+import { ActionGridSkeleton, StatsSkeleton } from '../components/Skeleton';
 import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
 import { invitationService } from '../services/invitationService';
@@ -37,6 +38,7 @@ const InvitationDetailScreen = ({ route, navigation }) => {
   const { token } = useAuth();
   const [invitation, setInvitation] = useState(initialInvitation);
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState(null);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', type: 'info', buttons: [] });
@@ -60,6 +62,8 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       setInvitation(response.invitation);
     } catch (error) {
       console.error('Error loading invitation:', error);
+    } finally {
+      setDetailLoading(false);
     }
     // Load stats in parallel (non-blocking)
     try {
@@ -354,26 +358,30 @@ const InvitationDetailScreen = ({ route, navigation }) => {
         {/* ── ACTION GRID ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Kelola</Text>
-          <View style={styles.actionGrid}>
-            {actionGrid.map((item) => (
-              <TouchableOpacity
-                key={item.label}
-                style={styles.actionCell}
-                onPress={item.onPress}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.actionIconWrap, { backgroundColor: item.bg }]}>
-                  <Ionicons name={item.icon} size={22} color={item.color} />
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <View style={[styles.actionBadge, { backgroundColor: item.color }]}>
-                      <Text style={styles.actionBadgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.actionLabel}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {detailLoading ? (
+            <ActionGridSkeleton count={10} />
+          ) : (
+            <View style={styles.actionGrid}>
+              {actionGrid.map((item) => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={styles.actionCell}
+                  onPress={item.onPress}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.actionIconWrap, { backgroundColor: item.bg }]}>
+                    <Ionicons name={item.icon} size={22} color={item.color} />
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <View style={[styles.actionBadge, { backgroundColor: item.color }]}>
+                        <Text style={styles.actionBadgeText}>{item.badge}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.actionLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── LAYAR SAPA (DISPLAY SCREEN) ── */}
@@ -442,131 +450,134 @@ const InvitationDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* ── STATISTIK ── */}
-        {(() => {
-          const viewsCount   = stats?.views_count   ?? invitation.views_count   ?? 0;
-          const guestsCount  = stats?.guests_count  ?? invitation.guests_count  ?? 0;
-          const rsvpsCount   = stats?.rsvps_count   ?? invitation.rsvps_count   ?? 0;
-          const mobileViews  = stats?.mobile_views  ?? 0;
-          const desktopViews = stats?.desktop_views ?? 0;
-          const tabletViews  = stats?.tablet_views  ?? 0;
-          const engagementRate = viewsCount > 0
-            ? ((rsvpsCount / viewsCount) * 100).toFixed(1)
-            : '0.0';
-          const totalDeviceViews = mobileViews + desktopViews + tabletViews || 1;
+        <View style={styles.section}>
+          <View style={styles.statsSectionHeader}>
+            <Text style={styles.sectionTitle}>Statistik</Text>
+            {!detailLoading && (
+              <TouchableOpacity
+                style={styles.statsDetailBtn}
+                onPress={() => navigation.navigate('Statistics', { invitation })}
+              >
+                <Text style={styles.statsDetailText}>Detail</Text>
+                <Ionicons name="chevron-forward" size={13} color={theme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-          return (
-            <View style={styles.section}>
-              <View style={styles.statsSectionHeader}>
-                <Text style={styles.sectionTitle}>Statistik</Text>
-                <TouchableOpacity
-                  style={styles.statsDetailBtn}
-                  onPress={() => navigation.navigate('Statistics', { invitation })}
-                >
-                  <Text style={styles.statsDetailText}>Detail</Text>
-                  <Ionicons name="chevron-forward" size={13} color={theme.colors.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Overview 4 cards */}
-              <View style={styles.statsGrid}>
-                {[
-                  { icon: 'eye-outline',         label: 'Views',  value: viewsCount,  color: theme.colors.primary },
-                  { icon: 'people-outline',       label: 'Tamu',   value: guestsCount, color: theme.colors.accent  },
-                  { icon: 'chatbubbles-outline',  label: 'RSVP',   value: rsvpsCount,  color: theme.colors.success },
-                  { icon: 'trending-up-outline',  label: 'Rate',   value: `${engagementRate}%`, color: '#A855F7' },
-                ].map(s => (
-                  <View key={s.label} style={[styles.statsCard, { borderTopColor: s.color }]}>
-                    <View style={[styles.statsIconBg, { backgroundColor: s.color + '15' }]}>
-                      <Ionicons name={s.icon} size={16} color={s.color} />
-                    </View>
-                    <Text style={[styles.statsValue, { color: s.color }]}>{s.value}</Text>
-                    <Text style={styles.statsLabel}>{s.label}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Funnel bar */}
-              <View style={styles.statsCard2}>
-                <View style={styles.funnelRow}>
-                  <View style={styles.funnelItem}>
-                    <Text style={styles.funnelNum}>{viewsCount}</Text>
-                    <Text style={styles.funnelLbl}>Views</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
-                  <View style={styles.funnelItem}>
-                    <Text style={styles.funnelNum}>{rsvpsCount}</Text>
-                    <Text style={styles.funnelLbl}>RSVP</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
-                  <View style={styles.funnelItem}>
-                    <Text style={[styles.funnelNum, { color: '#A855F7' }]}>{engagementRate}%</Text>
-                    <Text style={styles.funnelLbl}>Engagement</Text>
-                  </View>
-                </View>
-                <View style={styles.funnelTrack}>
-                  <LinearGradient
-                    colors={theme.colors.gradient.primary}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.funnelFill, { width: `${Math.min(parseFloat(engagementRate), 100)}%` }]}
-                  />
-                </View>
-              </View>
-
-              {/* Device breakdown */}
-              {(mobileViews + desktopViews + tabletViews) > 0 && (
-                <View style={styles.statsCard2}>
-                  <Text style={styles.statsCard2Title}>Perangkat</Text>
+          {detailLoading ? (
+            <StatsSkeleton />
+          ) : (() => {
+            const viewsCount       = stats?.views_count   ?? invitation.views_count   ?? 0;
+            const guestsCount      = stats?.guests_count  ?? invitation.guests_count  ?? 0;
+            const rsvpsCount       = stats?.rsvps_count   ?? invitation.rsvps_count   ?? 0;
+            const mobileViews      = stats?.mobile_views  ?? 0;
+            const desktopViews     = stats?.desktop_views ?? 0;
+            const tabletViews      = stats?.tablet_views  ?? 0;
+            const engagementRate   = viewsCount > 0 ? ((rsvpsCount / viewsCount) * 100).toFixed(1) : '0.0';
+            const totalDeviceViews = mobileViews + desktopViews + tabletViews || 1;
+            return (
+              <>
+                {/* Overview 4 cards */}
+                <View style={styles.statsGrid}>
                   {[
-                    { icon: 'phone-portrait-outline', label: 'Mobile',  value: mobileViews,  color: theme.colors.primary },
-                    { icon: 'desktop-outline',         label: 'Desktop', value: desktopViews, color: theme.colors.success },
-                    { icon: 'tablet-portrait-outline', label: 'Tablet',  value: tabletViews,  color: theme.colors.accent  },
-                  ].map((d, i) => {
-                    const pct = Math.round((d.value / totalDeviceViews) * 100);
-                    return (
-                      <View key={d.label} style={[styles.deviceRow, i > 0 && { marginTop: 10 }]}>
-                        <View style={[styles.deviceIconBg, { backgroundColor: d.color + '15' }]}>
-                          <Ionicons name={d.icon} size={14} color={d.color} />
-                        </View>
-                        <View style={{ flex: 1, gap: 4 }}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={styles.deviceLabel}>{d.label}</Text>
-                            <Text style={[styles.deviceCount, { color: d.color }]}>{d.value} <Text style={styles.devicePct}>({pct}%)</Text></Text>
-                          </View>
-                          <ProgressBar value={d.value} total={totalDeviceViews} color={d.color} />
-                        </View>
+                    { icon: 'eye-outline',        label: 'Views', value: viewsCount,             color: theme.colors.primary },
+                    { icon: 'people-outline',      label: 'Tamu',  value: guestsCount,            color: theme.colors.accent  },
+                    { icon: 'chatbubbles-outline', label: 'RSVP',  value: rsvpsCount,             color: theme.colors.success },
+                    { icon: 'trending-up-outline', label: 'Rate',  value: `${engagementRate}%`,   color: '#A855F7'            },
+                  ].map(s => (
+                    <View key={s.label} style={[styles.statsCard, { borderTopColor: s.color }]}>
+                      <View style={[styles.statsIconBg, { backgroundColor: s.color + '15' }]}>
+                        <Ionicons name={s.icon} size={16} color={s.color} />
                       </View>
-                    );
-                  })}
+                      <Text style={[styles.statsValue, { color: s.color }]}>{s.value}</Text>
+                      <Text style={styles.statsLabel}>{s.label}</Text>
+                    </View>
+                  ))}
                 </View>
-              )}
 
-              {/* Last activity */}
-              {stats && (
+                {/* Funnel bar */}
                 <View style={styles.statsCard2}>
-                  <View style={styles.activityRow}>
-                    <View style={[styles.activityIconBg, { backgroundColor: theme.colors.primary + '15' }]}>
-                      <Ionicons name="time-outline" size={15} color={theme.colors.primary} />
+                  <View style={styles.funnelRow}>
+                    <View style={styles.funnelItem}>
+                      <Text style={styles.funnelNum}>{viewsCount}</Text>
+                      <Text style={styles.funnelLbl}>Views</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.activityLbl}>Terakhir dilihat</Text>
-                      <Text style={styles.activityVal}>{stats.last_viewed_at || 'Belum pernah'}</Text>
+                    <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
+                    <View style={styles.funnelItem}>
+                      <Text style={styles.funnelNum}>{rsvpsCount}</Text>
+                      <Text style={styles.funnelLbl}>RSVP</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
+                    <View style={styles.funnelItem}>
+                      <Text style={[styles.funnelNum, { color: '#A855F7' }]}>{engagementRate}%</Text>
+                      <Text style={styles.funnelLbl}>Engagement</Text>
                     </View>
                   </View>
-                  <View style={[styles.activityRow, { marginTop: 10 }]}>
-                    <View style={[styles.activityIconBg, { backgroundColor: theme.colors.success + '15' }]}>
-                      <Ionicons name="chatbubble-outline" size={15} color={theme.colors.success} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.activityLbl}>RSVP terakhir</Text>
-                      <Text style={styles.activityVal}>{stats.last_rsvp_at || 'Belum ada RSVP'}</Text>
-                    </View>
+                  <View style={styles.funnelTrack}>
+                    <LinearGradient
+                      colors={theme.colors.gradient.primary}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.funnelFill, { width: `${Math.min(parseFloat(engagementRate), 100)}%` }]}
+                    />
                   </View>
                 </View>
-              )}
-            </View>
-          );
-        })()}
+
+                {/* Device breakdown */}
+                {(mobileViews + desktopViews + tabletViews) > 0 && (
+                  <View style={styles.statsCard2}>
+                    <Text style={styles.statsCard2Title}>Perangkat</Text>
+                    {[
+                      { icon: 'phone-portrait-outline', label: 'Mobile',  value: mobileViews,  color: theme.colors.primary },
+                      { icon: 'desktop-outline',         label: 'Desktop', value: desktopViews, color: theme.colors.success },
+                      { icon: 'tablet-portrait-outline', label: 'Tablet',  value: tabletViews,  color: theme.colors.accent  },
+                    ].map((d, i) => {
+                      const pct = Math.round((d.value / totalDeviceViews) * 100);
+                      return (
+                        <View key={d.label} style={[styles.deviceRow, i > 0 && { marginTop: 10 }]}>
+                          <View style={[styles.deviceIconBg, { backgroundColor: d.color + '15' }]}>
+                            <Ionicons name={d.icon} size={14} color={d.color} />
+                          </View>
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={styles.deviceLabel}>{d.label}</Text>
+                              <Text style={[styles.deviceCount, { color: d.color }]}>{d.value} <Text style={styles.devicePct}>({pct}%)</Text></Text>
+                            </View>
+                            <ProgressBar value={d.value} total={totalDeviceViews} color={d.color} />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Last activity */}
+                {stats && (
+                  <View style={styles.statsCard2}>
+                    <View style={styles.activityRow}>
+                      <View style={[styles.activityIconBg, { backgroundColor: theme.colors.primary + '15' }]}>
+                        <Ionicons name="time-outline" size={15} color={theme.colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.activityLbl}>Terakhir dilihat</Text>
+                        <Text style={styles.activityVal}>{stats.last_viewed_at || 'Belum pernah'}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.activityRow, { marginTop: 10 }]}>
+                      <View style={[styles.activityIconBg, { backgroundColor: theme.colors.success + '15' }]}>
+                        <Ionicons name="chatbubble-outline" size={15} color={theme.colors.success} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.activityLbl}>RSVP terakhir</Text>
+                        <Text style={styles.activityVal}>{stats.last_rsvp_at || 'Belum ada RSVP'}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </>
+            );
+          })()}
+        </View>
 
         <View style={{ height: theme.spacing.xxl }} />
       </ScrollView>
