@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // Backend Laravel API URL
-export const API_BASE_URL = 'http://nikahin.online/api';
-export const WEB_BASE_URL = 'http://nikahin.online';
+export const API_BASE_URL = 'https://nikahin.online/api';
+export const WEB_BASE_URL = 'https://nikahin.online';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
