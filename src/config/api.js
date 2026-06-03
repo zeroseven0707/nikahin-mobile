@@ -6,7 +6,7 @@ export const WEB_BASE_URL = 'https://nikahin.online';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 6000,  // 6s — cukup untuk response normal, cepat fail jika server lambat
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

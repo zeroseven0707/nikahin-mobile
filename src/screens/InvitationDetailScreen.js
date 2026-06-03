@@ -38,7 +38,7 @@ const InvitationDetailScreen = ({ route, navigation }) => {
   const { token } = useAuth();
   const [invitation, setInvitation] = useState(initialInvitation);
   const [loading, setLoading] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState(null);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', type: 'info', buttons: [] });
@@ -46,13 +46,22 @@ const InvitationDetailScreen = ({ route, navigation }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('Pratinjau');
 
+  // Safety net 5 detik — jika API lambat, tetap hilangkan skeleton stats
+  useEffect(() => {
+    const timer = setTimeout(() => setStatsLoading(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const displayUrl = `${WEB_BASE_URL}/display/${invitation.unique_url}`;
 
   const showAlert = (title, message, type = 'info', buttons = []) =>
     setAlert({ visible: true, title, message, type, buttons });
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', loadInvitationData);
+    const unsubscribe = navigation.addListener('focus', () => {
+      setStatsLoading(true);
+      loadInvitationData();
+    });
     return unsubscribe;
   }, [navigation]);
 
@@ -62,14 +71,15 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       setInvitation(response.invitation);
     } catch (error) {
       console.error('Error loading invitation:', error);
-    } finally {
-      setDetailLoading(false);
+      // Tetap set false walau error — pakai data awal dari route params
     }
-    // Load stats in parallel (non-blocking)
+    // Load stats terpisah, non-blocking, tidak affect detailLoading
     try {
       const statsRes = await invitationService.getStatistics(token, invitation.id);
       setStats(statsRes.statistics || statsRes.data || {});
-    } catch (_) {}
+    } catch (_) {} finally {
+      setStatsLoading(false);
+    }
   };
 
   const handlePublish = () => {
@@ -358,30 +368,26 @@ const InvitationDetailScreen = ({ route, navigation }) => {
         {/* ── ACTION GRID ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Kelola</Text>
-          {detailLoading ? (
-            <ActionGridSkeleton count={10} />
-          ) : (
-            <View style={styles.actionGrid}>
-              {actionGrid.map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={styles.actionCell}
-                  onPress={item.onPress}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.actionIconWrap, { backgroundColor: item.bg }]}>
-                    <Ionicons name={item.icon} size={22} color={item.color} />
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <View style={[styles.actionBadge, { backgroundColor: item.color }]}>
-                        <Text style={styles.actionBadgeText}>{item.badge}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.actionLabel}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          <View style={styles.actionGrid}>
+            {actionGrid.map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={styles.actionCell}
+                onPress={item.onPress}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionIconWrap, { backgroundColor: item.bg }]}>
+                  <Ionicons name={item.icon} size={22} color={item.color} />
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <View style={[styles.actionBadge, { backgroundColor: item.color }]}>
+                      <Text style={styles.actionBadgeText}>{item.badge}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.actionLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* ── LAYAR SAPA (DISPLAY SCREEN) ── */}
@@ -453,7 +459,7 @@ const InvitationDetailScreen = ({ route, navigation }) => {
         <View style={styles.section}>
           <View style={styles.statsSectionHeader}>
             <Text style={styles.sectionTitle}>Statistik</Text>
-            {!detailLoading && (
+            {!statsLoading && (
               <TouchableOpacity
                 style={styles.statsDetailBtn}
                 onPress={() => navigation.navigate('Statistics', { invitation })}
@@ -464,7 +470,7 @@ const InvitationDetailScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {detailLoading ? (
+          {statsLoading ? (
             <StatsSkeleton />
           ) : (() => {
             const viewsCount       = stats?.views_count   ?? invitation.views_count   ?? 0;

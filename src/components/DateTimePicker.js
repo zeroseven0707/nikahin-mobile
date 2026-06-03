@@ -1,250 +1,302 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Dimensions } from 'react-native';
+/**
+ * DateTimePickerComponent
+ * Drum-roll scroll picker untuk date dan time.
+ * Scroll snap + auto-select saat scroll berhenti.
+ */
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  Modal, ScrollView, Dimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../config/theme';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ITEM_HEIGHT = 50;
+const ITEM_HEIGHT   = 48;
+const VISIBLE_ITEMS = 5;                          // ganjil agar tengah = selected
+const PICKER_H      = ITEM_HEIGHT * VISIBLE_ITEMS;
+const PADDING       = ITEM_HEIGHT * 2;            // padding atas & bawah agar item bisa ke tengah
 
+// ─── helpers ────────────────────────────────────────────────────────────────
+const pad = (n) => String(n).padStart(2, '0');
+
+const MONTHS = [
+  'Januari','Februari','Maret','April','Mei','Juni',
+  'Juli','Agustus','September','Oktober','November','Desember',
+];
+
+// ─── Single drum column ──────────────────────────────────────────────────────
+const DrumColumn = ({ items, selected, onSelect, formatLabel }) => {
+  const scrollRef = useRef(null);
+
+  const scrollToIndex = useCallback((index, animated = true) => {
+    scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated });
+  }, []);
+
+  // Scroll to selected when modal opens or selected changes
+  useEffect(() => {
+    const idx = items.findIndex((item) => {
+      const val = typeof item === 'object' ? item.value : item;
+      return val === selected;
+    });
+    if (idx >= 0) {
+      // slight delay so layout is done
+      const timer = setTimeout(() => scrollToIndex(idx, false), 60);
+      return () => clearTimeout(timer);
+    }
+  }, [selected, items]);
+
+  const handleScrollEnd = (e) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    const idx     = Math.round(offsetY / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(idx, items.length - 1));
+    const item    = items[clamped];
+    const val     = typeof item === 'object' ? item.value : item;
+    onSelect(val);
+    // snap back
+    scrollToIndex(clamped, true);
+  };
+
+  return (
+    <View style={col.wrap}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_HEIGHT}
+        decelerationRate="fast"
+        onMomentumScrollEnd={handleScrollEnd}
+        onScrollEndDrag={handleScrollEnd}
+        contentContainerStyle={{ paddingVertical: PADDING }}
+        nestedScrollEnabled
+      >
+        {items.map((item) => {
+          const val   = typeof item === 'object' ? item.value : item;
+          const label = typeof item === 'object'
+            ? item.label
+            : (formatLabel ? formatLabel(val) : String(val));
+          const isSelected = val === selected;
+          return (
+            <TouchableOpacity
+              key={val}
+              style={col.item}
+              onPress={() => {
+                onSelect(val);
+                const idx = items.findIndex((i) => (typeof i === 'object' ? i.value : i) === val);
+                scrollToIndex(idx);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[col.label, isSelected && col.labelActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+};
+
+const col = StyleSheet.create({
+  wrap:        { flex: 1, height: PICKER_H, overflow: 'hidden' },
+  item:        { height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' },
+  label:       { fontSize: theme.fontSize.md, color: theme.colors.textTertiary },
+  labelActive: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+  },
+});
+
+// ─── Main component ──────────────────────────────────────────────────────────
 const DateTimePickerComponent = ({
   label,
   value,
   onChange,
-  mode = 'date', // 'date' or 'time'
+  mode = 'date',
   leftIcon,
   error,
   style,
 }) => {
   const [show, setShow] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [selectedHour, setSelectedHour] = useState(null);
-  const [selectedMinute, setSelectedMinute] = useState(null);
 
-  const yearScrollRef = useRef(null);
-  const monthScrollRef = useRef(null);
-  const dayScrollRef = useRef(null);
-  const hourScrollRef = useRef(null);
-  const minuteScrollRef = useRef(null);
+  // Draft state — only committed on "Simpan"
+  const [dYear,   setDYear]   = useState(null);
+  const [dMonth,  setDMonth]  = useState(null);
+  const [dDay,    setDDay]    = useState(null);
+  const [dHour,   setDHour]   = useState(null);
+  const [dMinute, setDMinute] = useState(null);
 
-  // Initialize values when modal opens
+  // Initialise draft when opening
   useEffect(() => {
-    if (show) {
-      if (mode === 'date') {
-        if (value) {
-          const [year, month, day] = value.split('-');
-          setSelectedYear(parseInt(year));
-          setSelectedMonth(parseInt(month));
-          setSelectedDay(parseInt(day));
-        } else {
-          const today = new Date();
-          setSelectedYear(today.getFullYear());
-          setSelectedMonth(today.getMonth() + 1);
-          setSelectedDay(today.getDate());
-        }
+    if (!show) return;
+    if (mode === 'date') {
+      if (value) {
+        const [y, m, d] = value.split('-');
+        setDYear(parseInt(y)); setDMonth(parseInt(m)); setDDay(parseInt(d));
       } else {
-        if (value) {
-          const [hour, minute] = value.split(':');
-          setSelectedHour(parseInt(hour));
-          setSelectedMinute(parseInt(minute));
-        } else {
-          setSelectedHour(8);
-          setSelectedMinute(0);
-        }
+        const t = new Date();
+        setDYear(t.getFullYear()); setDMonth(t.getMonth() + 1); setDDay(t.getDate());
+      }
+    } else {
+      if (value) {
+        const [h, m] = value.split(':');
+        setDHour(parseInt(h)); setDMinute(parseInt(m));
+      } else {
+        setDHour(8); setDMinute(0);
       }
     }
-  }, [show, value, mode]);
+  }, [show]);
 
-  const formatDisplay = () => {
-    if (!value) {
-      return mode === 'date' ? 'Pilih tanggal' : 'Pilih waktu';
-    }
-    
+  // ── Display text ──
+  const displayText = () => {
+    if (!value) return mode === 'date' ? 'Pilih tanggal' : 'Pilih waktu';
     if (mode === 'date') {
       try {
-        const date = new Date(value + 'T00:00:00');
-        return date.toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        });
-      } catch {
-        return value;
-      }
-    } else {
-      return value; // Already in HH:MM format
+        const d = new Date(value + 'T00:00:00');
+        return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      } catch { return value; }
     }
+    return value; // HH:MM
   };
 
-  const handlePress = () => {
-    setShow(true);
-  };
-
+  // ── Save ──
   const handleSave = () => {
     if (mode === 'date') {
-      const year = selectedYear;
-      const month = String(selectedMonth).padStart(2, '0');
-      const day = String(selectedDay).padStart(2, '0');
-      onChange(`${year}-${month}-${day}`);
+      onChange(`${dYear}-${pad(dMonth)}-${pad(dDay)}`);
     } else {
-      const hour = String(selectedHour).padStart(2, '0');
-      const minute = String(selectedMinute).padStart(2, '0');
-      onChange(`${hour}:${minute}`);
+      onChange(`${pad(dHour)}:${pad(dMinute)}`);
     }
     setShow(false);
   };
 
-  // Generate options
-  const generateYears = () => {
-    const currentYear = new Date().getFullYear();
-    const years = [];
-    for (let i = currentYear; i <= currentYear + 5; i++) {
-      years.push(i);
-    }
-    return years;
-  };
+  // ── Item lists ──
+  const years = (() => {
+    const y = new Date().getFullYear();
+    return Array.from({ length: 7 }, (_, i) => y + i);
+  })();
 
-  const generateMonths = () => {
-    return [
-      { value: 1, label: 'Januari' },
-      { value: 2, label: 'Februari' },
-      { value: 3, label: 'Maret' },
-      { value: 4, label: 'April' },
-      { value: 5, label: 'Mei' },
-      { value: 6, label: 'Juni' },
-      { value: 7, label: 'Juli' },
-      { value: 8, label: 'Agustus' },
-      { value: 9, label: 'September' },
-      { value: 10, label: 'Oktober' },
-      { value: 11, label: 'November' },
-      { value: 12, label: 'Desember' },
-    ];
-  };
+  const months = MONTHS.map((label, i) => ({ value: i + 1, label }));
 
-  const generateDays = () => {
-    if (!selectedYear || !selectedMonth) return Array.from({ length: 31 }, (_, i) => i + 1);
-    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  };
+  const days = (() => {
+    const n = dYear && dMonth ? new Date(dYear, dMonth, 0).getDate() : 31;
+    return Array.from({ length: n }, (_, i) => i + 1);
+  })();
 
-  const generateHours = () => Array.from({ length: 24 }, (_, i) => i);
-  const generateMinutes = () => Array.from({ length: 60 }, (_, i) => i);
-
-  const renderPicker = (items, selectedValue, onSelect, formatItem = (item) => item) => (
-    <View style={styles.pickerColumn}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        snapToInterval={ITEM_HEIGHT}
-        decelerationRate="fast"
-        contentContainerStyle={styles.pickerScrollContent}
-      >
-        <View style={{ height: ITEM_HEIGHT * 2 }} />
-        {items.map((item) => {
-          const itemValue = typeof item === 'object' ? item.value : item;
-          const itemLabel = typeof item === 'object' ? item.label : formatItem(item);
-          const isSelected = selectedValue === itemValue;
-          
-          return (
-            <TouchableOpacity
-              key={itemValue}
-              style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
-              onPress={() => onSelect(itemValue)}
-            >
-              <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}>
-                {itemLabel}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        <View style={{ height: ITEM_HEIGHT * 2 }} />
-      </ScrollView>
-    </View>
-  );
+  const hours   = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = Array.from({ length: 60 }, (_, i) => i);
 
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
+
       <TouchableOpacity
-        style={[
-          styles.inputContainer,
-          error && styles.inputContainerError,
-        ]}
-        onPress={handlePress}
+        style={[styles.trigger, error && styles.triggerError]}
+        onPress={() => setShow(true)}
+        activeOpacity={0.8}
       >
         {leftIcon && (
           <Ionicons
             name={leftIcon}
             size={20}
-            color={error ? theme.colors.error : theme.colors.textSecondary}
+            color={value ? theme.colors.primary : theme.colors.textSecondary}
             style={styles.leftIcon}
           />
         )}
-        <Text style={[
-          styles.inputText,
-          !value && styles.placeholderText,
-        ]}>
-          {formatDisplay()}
+        <Text style={[styles.triggerText, !value && styles.placeholder]}>
+          {displayText()}
         </Text>
-        <Ionicons
-          name="chevron-down"
-          size={20}
-          color={theme.colors.textSecondary}
-          style={styles.rightIcon}
-        />
+        <Ionicons name="chevron-down" size={18} color={theme.colors.textSecondary} />
       </TouchableOpacity>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-      
-      <Modal
-        visible={show}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShow(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {mode === 'date' ? 'Pilih Tanggal' : 'Pilih Waktu'}
-              </Text>
-              <TouchableOpacity onPress={() => setShow(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.pickerContainer}>
-              <View style={styles.pickerHighlight} />
-              <View style={styles.pickerRow}>
-                {mode === 'date' ? (
-                  <>
-                    {renderPicker(generateDays(), selectedDay, setSelectedDay)}
-                    {renderPicker(generateMonths(), selectedMonth, setSelectedMonth)}
-                    {renderPicker(generateYears(), selectedYear, setSelectedYear)}
-                  </>
-                ) : (
-                  <>
-                    {renderPicker(generateHours(), selectedHour, setSelectedHour, (h) => String(h).padStart(2, '0'))}
-                    <Text style={styles.separator}>:</Text>
-                    {renderPicker(generateMinutes(), selectedMinute, setSelectedMinute, (m) => String(m).padStart(2, '0'))}
-                  </>
-                )}
-              </View>
-            </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShow(false)}
-              >
-                <Text style={styles.cancelButtonText}>Batal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSave}
-              >
-                <Text style={styles.saveButtonText}>Simpan</Text>
-              </TouchableOpacity>
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShow(false)} />
+
+        <View style={styles.sheet}>
+          {/* ── Header ── */}
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>
+              {mode === 'date' ? 'Pilih Tanggal' : 'Pilih Waktu'}
+            </Text>
+          </View>
+
+          {/* ── Drum picker ── */}
+          <View style={styles.drumWrap}>
+            {/* Selection highlight */}
+            <View style={styles.highlight} pointerEvents="none" />
+
+            {/* Fade overlays */}
+            <LinearGradient
+              colors={['rgba(255,255,255,1)', 'rgba(255,255,255,0)']}
+              style={[styles.fade, styles.fadeTop]}
+              pointerEvents="none"
+            />
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+              style={[styles.fade, styles.fadeBottom]}
+              pointerEvents="none"
+            />
+
+            <View style={styles.drumRow}>
+              {mode === 'date' ? (
+                <>
+                  <DrumColumn
+                    items={days}
+                    selected={dDay}
+                    onSelect={setDDay}
+                    formatLabel={(v) => pad(v)}
+                  />
+                  <Text style={styles.sep}>/</Text>
+                  <DrumColumn
+                    items={months}
+                    selected={dMonth}
+                    onSelect={setDMonth}
+                  />
+                  <Text style={styles.sep}>/</Text>
+                  <DrumColumn
+                    items={years}
+                    selected={dYear}
+                    onSelect={setDYear}
+                  />
+                </>
+              ) : (
+                <>
+                  <DrumColumn
+                    items={hours}
+                    selected={dHour}
+                    onSelect={setDHour}
+                    formatLabel={pad}
+                  />
+                  <Text style={styles.colon}>:</Text>
+                  <DrumColumn
+                    items={minutes}
+                    selected={dMinute}
+                    onSelect={setDMinute}
+                    formatLabel={pad}
+                  />
+                </>
+              )}
             </View>
+          </View>
+
+          {/* ── Buttons ── */}
+          <View style={styles.btnRow}>
+            <TouchableOpacity style={styles.btnCancel} onPress={() => setShow(false)} activeOpacity={0.8}>
+              <Text style={styles.btnCancelText}>Batal</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnSave} onPress={handleSave} activeOpacity={0.85}>
+              <LinearGradient
+                colors={theme.colors.gradient.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.btnSaveGrad}
+              >
+                <Text style={styles.btnSaveText}>Simpan</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -253,155 +305,142 @@ const DateTimePickerComponent = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: theme.spacing.md,
-  },
-  label: {
+  container:    { marginBottom: theme.spacing.md },
+  label:        {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+    marginBottom: 6,
   },
-  inputContainer: {
+
+  // Trigger button
+  trigger: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: 13,
+    gap: 8,
   },
-  inputContainerError: {
-    borderColor: theme.colors.error,
-  },
-  leftIcon: {
-    marginRight: theme.spacing.xs,
-  },
-  rightIcon: {
-    marginLeft: theme.spacing.xs,
-  },
-  inputText: {
+  triggerError:  { borderColor: theme.colors.error },
+  leftIcon:      { flexShrink: 0 },
+  triggerText:   { flex: 1, fontSize: theme.fontSize.md, color: theme.colors.text },
+  placeholder:   { color: theme.colors.textTertiary },
+  error:         { fontSize: theme.fontSize.xs, color: theme.colors.error, marginTop: 4, marginLeft: 2 },
+
+  // Sheet
+  overlay: {
     flex: 1,
-    fontSize: theme.fontSize.md,
-    color: theme.colors.text,
-    paddingLeft: theme.spacing.xs,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  placeholderText: {
-    color: theme.colors.textSecondary,
-  },
-  errorText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.error,
-    marginTop: theme.spacing.xs,
-    marginLeft: theme.spacing.xs,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+  sheet: {
     backgroundColor: theme.colors.white,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
-    paddingBottom: theme.spacing.xl,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 28,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  sheetHeader: {
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
   },
-  modalTitle: {
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    marginBottom: 12,
+  },
+  sheetTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.text,
   },
-  pickerContainer: {
-    height: ITEM_HEIGHT * 5,
+
+  // Drum
+  drumWrap: {
     position: 'relative',
-    paddingVertical: theme.spacing.lg,
+    height: PICKER_H,
+    marginVertical: 8,
+    marginHorizontal: 16,
   },
-  pickerHighlight: {
+  highlight: {
     position: 'absolute',
-    top: '50%',
-    left: theme.spacing.lg,
-    right: theme.spacing.lg,
+    left: 0, right: 0,
+    top: ITEM_HEIGHT * 2,
     height: ITEM_HEIGHT,
-    marginTop: -ITEM_HEIGHT / 2,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary + '10',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary + '30',
+    zIndex: 1,
   },
-  pickerRow: {
+  fade: {
+    position: 'absolute',
+    left: 0, right: 0,
+    height: ITEM_HEIGHT * 2,
+    zIndex: 2,
+    pointerEvents: 'none',
+  },
+  fadeTop:    { top: 0 },
+  fadeBottom: { bottom: 0 },
+  drumRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     height: '100%',
+    zIndex: 0,
   },
-  pickerColumn: {
+  sep: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.textSecondary,
+    paddingHorizontal: 2,
+  },
+  colon: {
+    fontSize: 28,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
+  },
+
+  // Buttons
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  btnCancel: {
     flex: 1,
-    height: '100%',
-  },
-  pickerScrollContent: {
-    paddingHorizontal: theme.spacing.sm,
-  },
-  pickerItem: {
-    height: ITEM_HEIGHT,
-    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
     alignItems: 'center',
+    backgroundColor: theme.colors.surface,
   },
-  pickerItemSelected: {
-    // Selected item styling handled by highlight
-  },
-  pickerItemText: {
+  btnCancelText: {
     fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.textSecondary,
   },
-  pickerItemTextSelected: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-  },
-  separator: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-    marginHorizontal: theme.spacing.sm,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    gap: theme.spacing.md,
-  },
-  modalButton: {
+  btnSave: {
     flex: 1,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  btnSaveGrad: {
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  cancelButton: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  cancelButtonText: {
+  btnSaveText: {
     fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.text,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.primary,
-  },
-  saveButtonText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.white,
+    color: '#fff',
   },
 });
 

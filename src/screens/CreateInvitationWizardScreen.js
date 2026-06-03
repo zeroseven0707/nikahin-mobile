@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,7 @@ const steps = [
 const CreateInvitationWizardScreen = ({ navigation, route }) => {
   const { token } = useAuth();
   const selectedTemplateId = route?.params?.selectedTemplateId ?? null;
+  const scrollRef = useRef(null);
 
   const [currentStep, setCurrentStep] = useState(selectedTemplateId ? 2 : 1);
   const [loading, setLoading] = useState(false);
@@ -317,20 +318,88 @@ const CreateInvitationWizardScreen = ({ navigation, route }) => {
   const renderAkadStep = () => (
     <View>
       {renderStepHeader('heart-outline', 'Akad Nikah', 'Waktu dan tempat pelaksanaan akad nikah', '#EF4444')}
-      <DateTimePickerComponent label="Tanggal Akad *" value={formData.akad_date} onChange={v => set('akad_date', v)} mode="date" leftIcon="calendar-outline" />
-      <DateTimePickerComponent label="Waktu Mulai" value={formData.akad_time_start} onChange={v => set('akad_time_start', v)} mode="time" leftIcon="time-outline" />
-      <DateTimePickerComponent label="Waktu Selesai" value={formData.akad_time_end} onChange={v => set('akad_time_end', v)} mode="time" leftIcon="time-outline" />
-      <Input label="Lokasi Akad *" placeholder="Nama gedung / masjid" value={formData.akad_location} onChangeText={v => set('akad_location', v)} leftIcon="location-outline" />
+      <DateTimePickerComponent
+        label="Tanggal Akad *"
+        value={formData.akad_date}
+        onChange={v => set('akad_date', v)}
+        mode="date"
+        leftIcon="calendar-outline"
+      />
+      {/* Waktu dalam 2 kolom */}
+      <View style={styles.timeRow}>
+        <View style={styles.timeCol}>
+          <DateTimePickerComponent
+            label="Waktu Mulai"
+            value={formData.akad_time_start}
+            onChange={v => set('akad_time_start', v)}
+            mode="time"
+            leftIcon="time-outline"
+          />
+        </View>
+        <View style={styles.timeColSep}>
+          <Ionicons name="arrow-forward" size={16} color={theme.colors.textTertiary} />
+        </View>
+        <View style={styles.timeCol}>
+          <DateTimePickerComponent
+            label="Waktu Selesai"
+            value={formData.akad_time_end}
+            onChange={v => set('akad_time_end', v)}
+            mode="time"
+            leftIcon="time-outline"
+          />
+        </View>
+      </View>
+      <Input
+        label="Lokasi Akad *"
+        placeholder="Nama gedung / masjid"
+        value={formData.akad_location}
+        onChangeText={v => set('akad_location', v)}
+        leftIcon="location-outline"
+      />
     </View>
   );
 
   const renderReceptionStep = () => (
     <View>
       {renderStepHeader('restaurant-outline', 'Resepsi Pernikahan', 'Waktu dan tempat pelaksanaan resepsi', '#F59E0B')}
-      <DateTimePickerComponent label="Tanggal Resepsi *" value={formData.reception_date} onChange={v => set('reception_date', v)} mode="date" leftIcon="calendar-outline" />
-      <DateTimePickerComponent label="Waktu Mulai" value={formData.reception_time_start} onChange={v => set('reception_time_start', v)} mode="time" leftIcon="time-outline" />
-      <DateTimePickerComponent label="Waktu Selesai" value={formData.reception_time_end} onChange={v => set('reception_time_end', v)} mode="time" leftIcon="time-outline" />
-      <Input label="Lokasi Resepsi *" placeholder="Nama gedung / tempat" value={formData.reception_location} onChangeText={v => set('reception_location', v)} leftIcon="location-outline" />
+      <DateTimePickerComponent
+        label="Tanggal Resepsi *"
+        value={formData.reception_date}
+        onChange={v => set('reception_date', v)}
+        mode="date"
+        leftIcon="calendar-outline"
+      />
+      {/* Waktu dalam 2 kolom */}
+      <View style={styles.timeRow}>
+        <View style={styles.timeCol}>
+          <DateTimePickerComponent
+            label="Waktu Mulai"
+            value={formData.reception_time_start}
+            onChange={v => set('reception_time_start', v)}
+            mode="time"
+            leftIcon="time-outline"
+          />
+        </View>
+        <View style={styles.timeColSep}>
+          <Ionicons name="arrow-forward" size={16} color={theme.colors.textTertiary} />
+        </View>
+        <View style={styles.timeCol}>
+          <DateTimePickerComponent
+            label="Waktu Selesai"
+            value={formData.reception_time_end}
+            onChange={v => set('reception_time_end', v)}
+            mode="time"
+            leftIcon="time-outline"
+          />
+        </View>
+      </View>
+      <Input
+        label="Lokasi Resepsi *"
+        placeholder="Nama gedung / tempat"
+        value={formData.reception_location}
+        onChangeText={v => set('reception_location', v)}
+        leftIcon="location-outline"
+      />
     </View>
   );
 
@@ -347,6 +416,7 @@ const CreateInvitationWizardScreen = ({ navigation, route }) => {
         latitude={formData.latitude}
         longitude={formData.longitude}
         height={340}
+        scrollRef={scrollRef}
         onLocationSelect={({ lat, lng, displayName }) => {
           setFormData(prev => ({
             ...prev,
@@ -435,7 +505,7 @@ const CreateInvitationWizardScreen = ({ navigation, route }) => {
 
       {/* ── CONTENT ── */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.scrollContent}>
+        <ScrollView ref={scrollRef} style={styles.flex} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.scrollContent}>
 
           {/* Step card */}
           <View style={styles.stepCard}>
@@ -759,6 +829,22 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1, fontSize: theme.fontSize.sm,
     color: theme.colors.textSecondary, lineHeight: 20,
+  },
+
+  // ── TIME ROW ──
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 0,
+    marginBottom: 4,
+  },
+  timeCol: {
+    flex: 1,
+  },
+  timeColSep: {
+    paddingBottom: 22,
+    paddingHorizontal: 6,
+    alignItems: 'center',
   },
 
   // ── MAP LABEL + COORD DISPLAY ──
