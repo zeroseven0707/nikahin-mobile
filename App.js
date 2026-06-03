@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { SettingsProvider } from './src/context/SettingsContext';
 import SplashScreen from './src/screens/SplashScreen';
 
 // Wrapper that shows splash while auth is loading
@@ -24,10 +25,12 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <SettingsProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </SettingsProvider>
   );
 }

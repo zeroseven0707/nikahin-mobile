@@ -10,6 +10,7 @@ import CustomAlert from '../components/CustomAlert';
 import WebViewModal from '../components/WebViewModal';
 import { theme } from '../config/theme';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { paymentService, invitationService } from '../services/invitationService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -20,11 +21,12 @@ const formatRupiah = (amount) =>
 const PaymentScreen = ({ route, navigation }) => {
   const { invitation } = route.params;
   const { token } = useAuth();
+  const { invitationPrice } = useSettings();
 
   const [loading, setLoading]       = useState(false);
   const [checking, setChecking]     = useState(true);
   const [isPaid, setIsPaid]         = useState(false);
-  const [amount, setAmount]         = useState(50000);
+  const [amount, setAmount]         = useState(invitationPrice);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [paymentType, setPaymentType]     = useState(null);
   const [snapUrl, setSnapUrl]       = useState(null);   // WebView URL
@@ -71,6 +73,11 @@ const PaymentScreen = ({ route, navigation }) => {
       if (!res.snap_token) {
         showAlert('Error', 'Gagal mendapatkan token pembayaran.', 'error');
         return;
+      }
+
+      // Update amount dengan harga resmi dari server
+      if (res.amount) {
+        setAmount(res.amount);
       }
 
       // Build Midtrans Snap URL and open as in-app WebView modal
