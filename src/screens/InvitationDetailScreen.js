@@ -178,26 +178,11 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       onPress: () => navigation.navigate('Gallery', { invitation }),
     },
     {
-      icon: 'people-outline',
-      color: theme.colors.success,
-      bg: theme.colors.success + '15',
-      label: 'Tamu',
-      badge: invitation.guests_count || 0,
-      onPress: () => navigation.navigate('GuestList', { invitation }),
-    },
-    {
       icon: 'musical-notes-outline',
       color: '#8B5CF6',
       bg: '#8B5CF615',
       label: 'Musik',
       onPress: () => navigation.navigate('Music', { invitation }),
-    },
-    {
-      icon: 'qr-code-outline',
-      color: '#7C3AED',
-      bg: '#7C3AED15',
-      label: 'QR Tamu',
-      onPress: () => navigation.navigate('ScanHub', { invitation }),
     },
     {
       icon: 'chatbubbles-outline',
@@ -206,6 +191,21 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       label: 'RSVP',
       badge: invitation.rsvps_count || 0,
       onPress: () => navigation.navigate('RsvpList', { invitation }),
+    },
+    {
+      icon: 'people-outline',
+      color: theme.colors.success,
+      bg: theme.colors.success + '15',
+      label: 'Tamu',
+      badge: invitation.guests_count || 0,
+      onPress: () => navigation.navigate('GuestList', { invitation }),
+    },
+    {
+      icon: 'qr-code-outline',
+      color: '#7C3AED',
+      bg: '#7C3AED15',
+      label: 'QR Tamu',
+      onPress: () => navigation.navigate('ScanHub', { invitation }),
     },
     {
       icon: 'gift-outline',
