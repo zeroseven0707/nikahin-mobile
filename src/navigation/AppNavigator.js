@@ -37,6 +37,7 @@ import HelpScreen from '../screens/HelpScreen';
 import ScanHubScreen from '../screens/ScanHubScreen';
 import GiftTrackingScreen from '../screens/GiftTrackingScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
+import MusicScreen from '../screens/MusicScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -140,6 +141,7 @@ const AppNavigator = () => {
           <Stack.Screen name="QrScanner" component={QrScannerScreen} />
           <Stack.Screen name="ScanHub" component={ScanHubScreen} />
           <Stack.Screen name="GiftTracking" component={GiftTrackingScreen} />
+          <Stack.Screen name="Music" component={MusicScreen} />
           <Stack.Screen name="ImportGuest" component={ImportGuestScreen} />
           <Stack.Screen name="RsvpList" component={RsvpListScreen} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} />

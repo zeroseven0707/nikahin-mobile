@@ -684,3 +684,57 @@ export const paymentService = {
     }
   },
 };
+
+export const musicService = {
+  /**
+   * Get music info for an invitation
+   */
+  getMusic: async (token, invitationId) => {
+    try {
+      const response = await api.get(`/invitations/${invitationId}/music`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Upload music file (mp3, m4a, aac, ogg, wav — max 10 MB)
+   */
+  uploadMusic: async (token, invitationId, fileUri, fileName, mimeType) => {
+    try {
+      const formData = new FormData();
+      formData.append('music', { uri: fileUri, name: fileName, type: mimeType });
+      const response = await api.post(
+        `/invitations/${invitationId}/music`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 60000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Delete music from invitation
+   */
+  deleteMusic: async (token, invitationId) => {
+    try {
+      const response = await api.delete(`/invitations/${invitationId}/music`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+};

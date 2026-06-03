@@ -160,32 +160,6 @@ const InvitationDetailScreen = ({ route, navigation }) => {
   // 2-column action grid
   const actionGrid = [
     {
-      icon: 'eye-outline',
-      color: theme.colors.primary,
-      bg: theme.colors.primary + '15',
-      label: 'Lihat',
-      onPress: () => {
-        const url = `${WEB_BASE_URL}/i/${invitation.unique_url}`;
-        setPreviewUrl(url);
-        setPreviewTitle('Pratinjau Undangan');
-        setPreviewVisible(true);
-      },
-    },
-    {
-      icon: 'share-social-outline',
-      color: theme.colors.primary,
-      bg: theme.colors.primary + '15',
-      label: 'Bagikan',
-      onPress: () => navigation.navigate('ShareInvitation', { invitation }),
-    },
-    {
-      icon: 'logo-whatsapp',
-      color: '#25D366',
-      bg: '#25D36615',
-      label: 'WA Blast',
-      onPress: () => navigation.navigate('WaBlast', { invitation }),
-    },
-    {
       icon: 'create-outline',
       color: theme.colors.accent,
       bg: theme.colors.accent + '18',
@@ -208,6 +182,13 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       onPress: () => navigation.navigate('GuestList', { invitation }),
     },
     {
+      icon: 'musical-notes-outline',
+      color: '#8B5CF6',
+      bg: '#8B5CF615',
+      label: 'Musik',
+      onPress: () => navigation.navigate('Music', { invitation }),
+    },
+    {
       icon: 'qr-code-outline',
       color: '#7C3AED',
       bg: '#7C3AED15',
@@ -228,6 +209,32 @@ const InvitationDetailScreen = ({ route, navigation }) => {
       bg: '#EC489915',
       label: 'Hadiah',
       onPress: () => navigation.navigate('GiftTracking', { invitation }),
+    },
+    {
+      icon: 'logo-whatsapp',
+      color: '#25D366',
+      bg: '#25D36615',
+      label: 'Kirim WA',
+      onPress: () => navigation.navigate('WaBlast', { invitation }),
+    },
+    {
+      icon: 'eye-outline',
+      color: theme.colors.primary,
+      bg: theme.colors.primary + '15',
+      label: 'Lihat',
+      onPress: () => {
+        const url = `${WEB_BASE_URL}/i/${invitation.unique_url}`;
+        setPreviewUrl(url);
+        setPreviewTitle('Pratinjau Undangan');
+        setPreviewVisible(true);
+      },
+    },
+    {
+      icon: 'share-social-outline',
+      color: theme.colors.primary,
+      bg: theme.colors.primary + '15',
+      label: 'Bagikan',
+      onPress: () => navigation.navigate('ShareInvitation', { invitation }),
     },
   ];
 
